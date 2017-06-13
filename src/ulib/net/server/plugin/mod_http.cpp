@@ -138,6 +138,15 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
          }
 
       UHTTP::virtual_host = bvirtual_host;
+      
+      // flag to decide to minify css and js or not
+      bool bnMinify = cfg.readBoolean(U_CONSTANT_TO_PARAM("MINIFY_CSSJS"));
+      if(bnMinify) 
+      {
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::minify_cssjs_option, 0);
+         
+         U_NEW(bool, UHTTP::bnMinifyCssJs, bool(bnMinify));
+      }
 
       x = cfg.at(U_CONSTANT_TO_PARAM("USP_AUTOMATIC_ALIASING"));
 

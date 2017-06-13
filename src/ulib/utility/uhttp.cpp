@@ -30,6 +30,8 @@
 #include <ulib/net/server/plugin/mod_proxy.h>
 #include <ulib/net/server/plugin/mod_proxy_service.h>
 
+#include <ulib/net/server/server.h>
+
 #ifndef U_HTTP2_DISABLE
 #  include <ulib/utility/http2.h>
 #endif
@@ -155,6 +157,7 @@ bool              UHTTP::virtual_host;
 UString*          UHTTP::alias;
 UString*          UHTTP::global_alias;
 UString*          UHTTP::maintenance_mode_page;
+bool              UHTTP::bnMinifyCssJs;
 UVector<UString>* UHTTP::valias;
 #endif
 #ifdef USE_LIBSSL
@@ -2001,9 +2004,14 @@ U_NO_EXPORT bool UHTTP::readHeaderRequest()
          {
 #     ifndef U_HTTP2_DISABLE
          if (ptr[3] <= UHTTP2::CONTINUATION) U_http_version = '2';
-         else
-#     endif
+         else {
+            U_WARNING("DEBUG: 2009: UHttp.init abortive_close");
          UClientImage_Base::abortive_close();
+            }
+# else
+           U_WARNING("DEBUG: 2013: UHttp.init abortive_close");
+            UClientImage_Base::abortive_close(); 
+#     endif
          }
 
       U_RETURN(false);
@@ -3890,6 +3898,7 @@ int UHTTP::handlerREAD()
          {
          if (UClientImage_Base::request->isText() == false)
             {
+               U_WARNING("DEBUG: 3897: UHttp.init abortive_close");
             UClientImage_Base::abortive_close();
 
             U_RETURN(U_PLUGIN_HANDLER_ERROR);
@@ -4556,9 +4565,7 @@ UString UHTTP::checkDirectoryForUpload(const char* ptr, uint32_t len)
 
       U_MEMCPY(buffer+1, ptr, len);
 
-      buffer[++len] = '\0';
-
-      uint32_t len1 = u_canonicalize_pathname(buffer, len);
+      uint32_t len1 = u_canonicalize_pathname(buffer, ++len);
 
       if (memcmp(buffer, U_CONSTANT_TO_PARAM("/up")) == 0)
          {
@@ -7774,8 +7781,15 @@ U_NO_EXPORT void UHTTP::putDataInCache(const UString& fmt, UString& content)
             }
          }
 
-      content = UStringExt::minifyCssJs(content); // minifies CSS/JS by removing comments and whitespaces...
-
+      if (bnMinifyCssJs) 
+      {
+         content = UStringExt::minifyCssJs(content); // minifies CSS/JS by removing comments and whitespaces...
+      }
+      
+      U_SRV_LOG("UHTTP SRV log");//DEBUG
+      U_SRV_LOG("String max-size: %d", content.max_size());
+      
+      
       if (content.empty()) goto end;
       }
 #ifdef USE_PAGE_SPEED

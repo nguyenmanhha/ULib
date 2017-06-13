@@ -485,6 +485,8 @@ public:
    static UString* global_alias;
    static UVector<UString>* valias;
    static UString* maintenance_mode_page;
+   
+   static bool bnMinifyCssJs; // option turn on/off minifying of css and js by ulib server
 
    static void setGlobalAlias(const UString& alias);
 #endif
