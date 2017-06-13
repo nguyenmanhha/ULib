@@ -31,9 +31,10 @@ public:
       {
       U_TRACE_NO_PARAM(5, "Request::clear()")
 
-      table.clear();
-      radius.clear();
-      location.clear();
+
+              table.clear();
+             radius.clear();
+           location.clear();
       fbPermissions.clear();
       }
 
@@ -47,14 +48,14 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(fbPermissions, UVector<UString>));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "Request::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "Request::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(table,         UHashMap<UString>));
-      json.toJSON(U_JSON_METHOD_HANDLER(radius,        UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(location,      UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(fbPermissions, UVector<UString>));
+      U_JSON_TYPE_HANDLER(table,         UHashMap<UString>);
+      U_JSON_TYPE_HANDLER(radius,        UString);
+      U_JSON_TYPE_HANDLER(location,      UString);
+      U_JSON_TYPE_HANDLER(fbPermissions, UVector<UString>);
       }
 
    void fromJSON(UValue& json)
@@ -82,7 +83,7 @@ public:
          return UObjectIO::buffer_output;
          }
 
-      return 0;
+      return U_NULLPTR;
       }
 #endif
 
@@ -133,14 +134,14 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(table,         UHashMap<UString>));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "Response::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "Response::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(fbPermissions, UVector<UString>));
-      json.toJSON(U_JSON_METHOD_HANDLER(type,          UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(token,         UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(table,         UHashMap<UString>));
+      U_JSON_TYPE_HANDLER(fbPermissions, UVector<UString>);
+      U_JSON_TYPE_HANDLER(type,         UString);
+      U_JSON_TYPE_HANDLER(token,        UString);
+      U_JSON_TYPE_HANDLER(table,        UHashMap<UString>);
       }
 
    void fromJSON(UValue& json)
@@ -168,7 +169,7 @@ public:
          return UObjectIO::buffer_output;
          }
 
-      return 0;
+      return U_NULLPTR;
       }
 #endif
 };
@@ -196,12 +197,12 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(index, UString));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "Organization::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "Organization::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(name,  UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(index, UString));
+      U_JSON_TYPE_HANDLER(name,  UString);
+      U_JSON_TYPE_HANDLER(index, UString);
       }
 
    void fromJSON(UValue& json)
@@ -242,14 +243,14 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(dateTime, int64_t));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "Social::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "Social::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(name, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(token, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(key, unsigned));
-      json.toJSON(U_JSON_METHOD_HANDLER(dateTime, int64_t));
+      U_JSON_TYPE_HANDLER(name, UString);
+      U_JSON_TYPE_HANDLER(token, UString);
+      U_JSON_TYPE_HANDLER(key, unsigned);
+      U_JSON_TYPE_HANDLER(dateTime, int64_t);
       }
 
    void fromJSON(UValue& json)
@@ -286,12 +287,12 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(key, unsigned));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "StrangerSocial::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "StrangerSocial::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(name, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(key, unsigned));
+      U_JSON_TYPE_HANDLER(name, UString);
+      U_JSON_TYPE_HANDLER(key, unsigned);
       }
 
    void fromJSON(UValue& json)
@@ -326,12 +327,12 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(imageURL, UString));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "Link::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "Link::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(url, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(imageURL, UString));
+      U_JSON_TYPE_HANDLER(url, UString);
+      U_JSON_TYPE_HANDLER(imageURL, UString);
       }
 
    void fromJSON(UValue& json)
@@ -363,16 +364,16 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(imageHeight, float));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "LinkPreview::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "LinkPreview::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(imageURL, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(URL, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(title, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(domain, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(imageWidth, float));
-      json.toJSON(U_JSON_METHOD_HANDLER(imageHeight, float));
+      U_JSON_TYPE_HANDLER(imageURL, UString);
+      U_JSON_TYPE_HANDLER(URL, UString);
+      U_JSON_TYPE_HANDLER(title, UString);
+      U_JSON_TYPE_HANDLER(domain, UString);
+      U_JSON_TYPE_HANDLER(imageWidth, float);
+      U_JSON_TYPE_HANDLER(imageHeight, float);
       }
 
    void fromJSON(UValue& json)
@@ -414,19 +415,19 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(readTime, int64_t));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "Message::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "Message::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(actor, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(target, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(content, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(linkPreviews, UVector<LinkPreview*>));
-      json.toJSON(U_JSON_METHOD_HANDLER(key, unsigned));
-      json.toJSON(U_JSON_METHOD_HANDLER(ping, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(becameActive, bool));
-      json.toJSON(U_JSON_METHOD_HANDLER(dateTime, int64_t));
-      json.toJSON(U_JSON_METHOD_HANDLER(readTime, int64_t));
+      U_JSON_TYPE_HANDLER(actor, UString);
+      U_JSON_TYPE_HANDLER(target, UString);
+      U_JSON_TYPE_HANDLER(content, UString);
+      U_JSON_TYPE_HANDLER(linkPreviews, UVector<LinkPreview*>);
+      U_JSON_TYPE_HANDLER(key, unsigned);
+      U_JSON_TYPE_HANDLER(ping, UString);
+      U_JSON_TYPE_HANDLER(becameActive, bool);
+      U_JSON_TYPE_HANDLER(dateTime, int64_t);
+      U_JSON_TYPE_HANDLER(readTime, int64_t);
       }
 
    void fromJSON(UValue& json)
@@ -476,23 +477,23 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(college, Organization));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "User::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "User::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(token, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(name, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(pic, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(applePushToken, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(directory, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(socials, UVector<StrangerSocial*>));
-      json.toJSON(U_JSON_METHOD_HANDLER(links, UVector<Link*>));
-      json.toJSON(U_JSON_METHOD_HANDLER(points, unsigned));
-      json.toJSON(U_JSON_METHOD_HANDLER(spotCount, unsigned));
-      json.toJSON(U_JSON_METHOD_HANDLER(visibility, bool));
-      json.toJSON(U_JSON_METHOD_HANDLER(aroundSince, int64_t));
-      json.toJSON(U_JSON_METHOD_HANDLER(work, Organization));
-      json.toJSON(U_JSON_METHOD_HANDLER(college, Organization));
+      U_JSON_TYPE_HANDLER(token, UString);
+      U_JSON_TYPE_HANDLER(name, UString);
+      U_JSON_TYPE_HANDLER(pic, UString);
+      U_JSON_TYPE_HANDLER(applePushToken, UString);
+      U_JSON_TYPE_HANDLER(directory, UString);
+      U_JSON_TYPE_HANDLER(socials, UVector<StrangerSocial*>);
+      U_JSON_TYPE_HANDLER(links, UVector<Link*>);
+      U_JSON_TYPE_HANDLER(points, unsigned);
+      U_JSON_TYPE_HANDLER(spotCount, unsigned);
+      U_JSON_TYPE_HANDLER(visibility, bool);
+      U_JSON_TYPE_HANDLER(aroundSince, int64_t);
+      U_JSON_TYPE_HANDLER(work, Organization);
+      U_JSON_TYPE_HANDLER(college, Organization);
       }
 
    void fromJSON(UValue& json)
@@ -535,14 +536,14 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(dateTime, int64_t));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "Event::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "Event::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(actor, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(target, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(key, unsigned));
-      json.toJSON(U_JSON_METHOD_HANDLER(dateTime, int64_t));
+      U_JSON_TYPE_HANDLER(actor, UString);
+      U_JSON_TYPE_HANDLER(target, UString);
+      U_JSON_TYPE_HANDLER(key, unsigned);
+      U_JSON_TYPE_HANDLER(dateTime, int64_t);
       }
 
    void fromJSON(UValue& json)
@@ -615,26 +616,26 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(college, Organization));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "ResponseLogin::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "ResponseLogin::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(spotCount, unsigned));
-      json.toJSON(U_JSON_METHOD_HANDLER(type, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(token, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(name, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(pic, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(directory, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(actives, UVector<UString>));
-      json.toJSON(U_JSON_METHOD_HANDLER(nows, UVector<UString>));
-      json.toJSON(U_JSON_METHOD_HANDLER(freeFileNames, UVector<UString>));
-      json.toJSON(U_JSON_METHOD_HANDLER(links, UVector<Link*>));
-      json.toJSON(U_JSON_METHOD_HANDLER(users, UVector<User*>));
-      json.toJSON(U_JSON_METHOD_HANDLER(messages, UVector<Message*>));
-      json.toJSON(U_JSON_METHOD_HANDLER(events, UVector<Event*>));
-      json.toJSON(U_JSON_METHOD_HANDLER(socials, UVector<Social*>));
-      json.toJSON(U_JSON_METHOD_HANDLER(work, Organization));
-      json.toJSON(U_JSON_METHOD_HANDLER(college, Organization));
+      U_JSON_TYPE_HANDLER(spotCount, unsigned);
+      U_JSON_TYPE_HANDLER(type, UString);
+      U_JSON_TYPE_HANDLER(token, UString);
+      U_JSON_TYPE_HANDLER(name, UString);
+      U_JSON_TYPE_HANDLER(pic, UString);
+      U_JSON_TYPE_HANDLER(directory, UString);
+      U_JSON_TYPE_HANDLER(actives, UVector<UString>);
+      U_JSON_TYPE_HANDLER(nows, UVector<UString>);
+      U_JSON_TYPE_HANDLER(freeFileNames, UVector<UString>);
+      U_JSON_TYPE_HANDLER(links, UVector<Link*>);
+      U_JSON_TYPE_HANDLER(users, UVector<User*>);
+      U_JSON_TYPE_HANDLER(messages, UVector<Message*>);
+      U_JSON_TYPE_HANDLER(events, UVector<Event*>);
+      U_JSON_TYPE_HANDLER(socials, UVector<Social*>);
+      U_JSON_TYPE_HANDLER(work, Organization);
+      U_JSON_TYPE_HANDLER(college, Organization);
       }
 
    void fromJSON(UValue& json)
@@ -678,13 +679,13 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(organizations, UVector<Organization*>));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "ResponseSearch::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "ResponseSearch::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(type, UString));
-      json.toJSON(U_JSON_METHOD_HANDLER(key, unsigned));
-      json.toJSON(U_JSON_METHOD_HANDLER(organizations, UVector<Organization*>));
+      U_JSON_TYPE_HANDLER(type, UString);
+      U_JSON_TYPE_HANDLER(key, unsigned);
+      U_JSON_TYPE_HANDLER(organizations, UVector<Organization*>);
       }
 
    void fromJSON(UValue& json)
@@ -731,7 +732,7 @@ public:
       request.clear();
       response.clear();
 
-      presponse = 0;
+      presponse = U_NULLPTR;
       }
 
    void toJSON(UString& json)
@@ -745,15 +746,15 @@ public:
       json.toJSON(U_JSON_METHOD_HANDLER(presponse, Response));
       }
 
-   void toJSON(UValue& json)
+   void toJSON()
       {
-      U_TRACE(5, "Multiple::toJSON(%p)", &json)
+      U_TRACE_NO_PARAM(5, "Multiple::toJSON()")
 
-      json.toJSON(U_JSON_METHOD_HANDLER(organizations, UVector<Organization*>));
-      json.toJSON(U_JSON_METHOD_HANDLER(vrequests, UVector<Request*>));
-      json.toJSON(U_JSON_METHOD_HANDLER(request,  Request));
-      json.toJSON(U_JSON_METHOD_HANDLER(response, Response));
-      json.toJSON(U_JSON_METHOD_HANDLER(presponse, Response));
+      U_JSON_TYPE_HANDLER(organizations, UVector<Organization*>);
+      U_JSON_TYPE_HANDLER(vrequests, UVector<Request*>);
+      U_JSON_TYPE_HANDLER(request,  Request);
+      U_JSON_TYPE_HANDLER(response, Response);
+      U_JSON_TYPE_HANDLER(presponse, Response);
       }
 
    void fromJSON(UValue& json)
@@ -768,22 +769,61 @@ public:
       }
 };
 
-// Do a query and print the results
-
-static void testQuery(const UString& json, const char* cquery, const UString& expected)
+static void testMap()
 {
-   U_TRACE(5, "testQuery(%V,%S,%V)", json.rep, cquery, expected.rep)
+   U_TRACE_NO_PARAM(5, "testMap()")
 
-   char buffer[4096];
-   UString result, query(cquery, strlen(cquery));
-   int dataType = UValue::jread(json, query, result);
+   UValue json_obj;
+   UHashMap<UString> x;
+   UVector<UString> members;
+   UString result, mapJson = U_STRING_FROM_CONSTANT("{\"key1\":\"riga 1\",\"key2\":\"riga 2\",\"key3\":\"riga 3\",\"key4\":\"riga 4\"}");
 
-   cout.write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("dataType = (%d %S) query = %V result(%u) = %V UValue::jread_elements = %d "
-                                                                              "UValue::jread_error = (%d %S)\n"),
-              dataType, UValue::getDataTypeDescription(dataType), query.rep, result.size(), result.rep, UValue::jread_elements, UValue::jread_error,
-              UValue::getJReadErrorDescription()));
+   bool ok = JSON_parse(mapJson, x);
 
-   U_INTERNAL_ASSERT_EQUALS(result, expected)
+   U_INTERNAL_ASSERT(ok)
+
+   ok = (x["key1"] == U_STRING_FROM_CONSTANT("riga 1"));
+   U_INTERNAL_ASSERT(ok)
+   ok = (x["key2"] == U_STRING_FROM_CONSTANT("riga 2"));
+   U_INTERNAL_ASSERT(ok)
+   ok = (x["key3"] == U_STRING_FROM_CONSTANT("riga 3"));
+   U_INTERNAL_ASSERT(ok)
+   ok = (x["key4"] == U_STRING_FROM_CONSTANT("riga 4"));
+   U_INTERNAL_ASSERT(ok)
+
+   x.clear();
+
+   ok = JSON_parse(mapJson, x);
+
+   U_INTERNAL_ASSERT(ok)
+
+   ok = (x["key1"] == U_STRING_FROM_CONSTANT("riga 1"));
+   U_INTERNAL_ASSERT(ok)
+   ok = (x["key2"] == U_STRING_FROM_CONSTANT("riga 2"));
+   U_INTERNAL_ASSERT(ok)
+   ok = (x["key3"] == U_STRING_FROM_CONSTANT("riga 3"));
+   U_INTERNAL_ASSERT(ok)
+   ok = (x["key4"] == U_STRING_FROM_CONSTANT("riga 4"));
+   U_INTERNAL_ASSERT(ok)
+
+   JSON_stringify(result, json_obj, x);
+
+   U_ASSERT_EQUALS(result.size(), mapJson.size())
+
+   uint32_t n = json_obj.getMemberNames(members);
+   U_INTERNAL_ASSERT(n == 4)
+
+   const char* str = UObject2String(members);
+   U_INTERNAL_DUMP("UObject2String(members) = %S", str)
+
+   ok = json_obj.isMemberExist(U_CONSTANT_TO_PARAM("key4"));
+   U_INTERNAL_ASSERT(ok)
+
+   result.clear();
+
+   JSON_OBJ_stringify(result, x);
+
+   U_ASSERT_EQUALS( result.size(), mapJson.size() )
 }
 
 static void testVector()
@@ -830,67 +870,7 @@ static void testVector()
 
    JSON_OBJ_stringify(result, y);
 
-// (void) UFile::writeToTmp(U_STRING_TO_PARAM(result), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("test_json.%P"), 0);
-
    U_ASSERT_EQUALS( result, vecJson )
-}
-
-static void testMap()
-{
-   U_TRACE_NO_PARAM(5, "testMap()")
-
-   UValue json_obj;
-   UHashMap<UString> x;
-   UVector<UString> members;
-   UString result, mapJson = U_STRING_FROM_CONSTANT("{\"key1\":\"riga 1\",\"key2\":\"riga 2\",\"key3\":\"riga 3\",\"key4\":\"riga 4\"}");
-
-   bool ok = JSON_parse(mapJson, x);
-   U_INTERNAL_ASSERT(ok)
-
-   ok = (x["key1"] == U_STRING_FROM_CONSTANT("riga 1"));
-   U_INTERNAL_ASSERT(ok)
-   ok = (x["key2"] == U_STRING_FROM_CONSTANT("riga 2"));
-   U_INTERNAL_ASSERT(ok)
-   ok = (x["key3"] == U_STRING_FROM_CONSTANT("riga 3"));
-   U_INTERNAL_ASSERT(ok)
-   ok = (x["key4"] == U_STRING_FROM_CONSTANT("riga 4"));
-   U_INTERNAL_ASSERT(ok)
-
-   x.clear();
-
-   ok = JSON_parse(mapJson, x);
-
-   U_INTERNAL_ASSERT(ok)
-
-   ok = (x["key1"] == U_STRING_FROM_CONSTANT("riga 1"));
-   U_INTERNAL_ASSERT(ok)
-   ok = (x["key2"] == U_STRING_FROM_CONSTANT("riga 2"));
-   U_INTERNAL_ASSERT(ok)
-   ok = (x["key3"] == U_STRING_FROM_CONSTANT("riga 3"));
-   U_INTERNAL_ASSERT(ok)
-   ok = (x["key4"] == U_STRING_FROM_CONSTANT("riga 4"));
-   U_INTERNAL_ASSERT(ok)
-
-   JSON_stringify(result, json_obj, x);
-
-   U_ASSERT_EQUALS(result.size(), mapJson.size())
-
-   uint32_t n = json_obj.getMemberNames(members);
-   U_INTERNAL_ASSERT(n == 4)
-
-   const char* str = UObject2String(members);
-   U_INTERNAL_DUMP("UObject2String(members) = %S", str)
-
-   ok = json_obj.isMemberExist(U_CONSTANT_TO_PARAM("key4"));
-   U_INTERNAL_ASSERT(ok)
-
-   result.clear();
-
-   JSON_OBJ_stringify(result, x);
-
-// (void) UFile::writeToTmp(U_STRING_TO_PARAM(result), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("test_json.%P"), 0);
-
-   U_ASSERT_EQUALS( result.size(), mapJson.size() )
 }
 
 static void testRequest()
@@ -900,7 +880,6 @@ static void testRequest()
    UValue json_obj;
    Request request;
    const char* dump;
-
    UString result, reqJson = U_STRING_FROM_CONSTANT("{\"table\":{\"type\":\"localesData\",\"token\":\"A619828KAIJ6D3\"},\"radius\":\"near\",\"location\":\"40.7831 N, 73.9712 W\",\"fbPermissions\":[\"public_profile\",\"user_friends\",\"email\"]}");
 
    bool ok = JSON_parse(reqJson, request);
@@ -977,39 +956,6 @@ static void testResponse()
 
    JSON_OBJ_stringify(result, response);
 
-// (void) UFile::writeToTmp(U_STRING_TO_PARAM(result), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("test_json.%P"), 0);
-
-   U_ASSERT_EQUALS( result, reqJson )
-}
-
-static void testResponseSearch()
-{
-   U_TRACE_NO_PARAM(5, "testResponseSearch()")
-
-   UValue json_obj;
-   ResponseSearch response;
-//                                                   {"type":"localesData","key":0,"organizations":[{},{},{},{},{},"Texas A&M University--Commerce","S267"]}
-   UString result, reqJson = U_STRING_FROM_CONSTANT("{\"type\":\"localesData\",\"key\":0,\"organizations\":[{\"name\":\"Temple University\",\"index\":\"S119\"},{\"name\":\"Tennessee State University\",\"index\":\"S266\"},{\"name\":\"Tennessee Technological University\",\"index\":\"S224\"},{\"name\":\"Texas A&M University--College Station\",\"index\":\"S75\"},{\"name\":\"Texas A&M University--Commerce\",\"index\":\"S267\"}]}");
-
-   bool ok = JSON_parse(reqJson, response);
-
-   U_INTERNAL_ASSERT(ok)
-
-   U_INTERNAL_ASSERT_EQUALS(response.key, 0)
-   U_ASSERT_EQUALS(response.type, "localesData")
-   U_ASSERT_EQUALS(response.organizations[0]->name,  "Temple University")
-   U_ASSERT_EQUALS(response.organizations[0]->index, "S119")
-   U_ASSERT_EQUALS(response.organizations[4]->name,  "Texas A&M University--Commerce")
-   U_ASSERT_EQUALS(response.organizations[4]->index, "S267")
-
-// JSON_stringify(result, json_obj, response);
-// (void) UFile::writeToTmp(U_STRING_TO_PARAM(result), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("test_json.%P"), 0);
-// U_ASSERT_EQUALS( result, reqJson )
-
-   result.clear();
-
-   JSON_OBJ_stringify(result, response);
-
    U_ASSERT_EQUALS( result, reqJson )
 }
 
@@ -1034,16 +980,49 @@ static void testResponseLogin()
    U_ASSERT(response.college.name.empty())
    U_ASSERT_EQUALS(response.socials[0]->key, 3)
 
-// JSON_stringify(result, json_obj, response);
-// U_ASSERT_EQUALS( result, reqJson )
+   JSON_stringify(result, json_obj, response);
+
+// (void) UFile::writeToTmp(U_STRING_TO_PARAM(result), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("test_json.%P"), 0);
+
+   U_ASSERT_EQUALS( result.size(), reqJson.size() )
 
    result.clear();
 
    JSON_OBJ_stringify(result, response);
 
+   U_ASSERT_EQUALS( result.size(), reqJson.size() )
+}
+
+static void testResponseSearch()
+{
+   U_TRACE_NO_PARAM(5, "testResponseSearch()")
+
+   UValue json_obj;
+   ResponseSearch response;
+   UString result, reqJson = U_STRING_FROM_CONSTANT("{\"type\":\"localesData\",\"key\":0,\"organizations\":[{\"name\":\"Temple University\",\"index\":\"S119\"},{\"name\":\"Tennessee State University\",\"index\":\"S266\"},{\"name\":\"Tennessee Technological University\",\"index\":\"S224\"},{\"name\":\"Texas A&M University--College Station\",\"index\":\"S75\"},{\"name\":\"Texas A&M University--Commerce\",\"index\":\"S267\"}]}");
+
+   bool ok = JSON_parse(reqJson, response);
+
+   U_INTERNAL_ASSERT(ok)
+
+   U_INTERNAL_ASSERT_EQUALS(response.key, 0)
+   U_ASSERT_EQUALS(response.type, "localesData")
+   U_ASSERT_EQUALS(response.organizations[0]->name,  "Temple University")
+   U_ASSERT_EQUALS(response.organizations[0]->index, "S119")
+   U_ASSERT_EQUALS(response.organizations[4]->name,  "Texas A&M University--Commerce")
+   U_ASSERT_EQUALS(response.organizations[4]->index, "S267")
+
+   JSON_stringify(result, json_obj, response);
+
 // (void) UFile::writeToTmp(U_STRING_TO_PARAM(result), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("test_json.%P"), 0);
 
-   U_ASSERT_EQUALS( result.size(), reqJson.size() )
+   U_ASSERT_EQUALS( result, reqJson )
+
+   result.clear();
+
+   JSON_OBJ_stringify(result, response);
+
+   U_ASSERT_EQUALS( result, reqJson )
 }
 
 static void testMultiple()
@@ -1053,7 +1032,6 @@ static void testMultiple()
    UValue json_obj;
    const char* dump;
    Multiple multiple;
-//{"organizations":[{},{},{},{},{},"Texas A&M University--Commerce","S267"],"vrequests":[],"request":{"table":{"type":"localesData","token":"A619828KAIJ6D3"},"radius":"near","location":"40.7831 N, 73.9712 W","fbPermissions":["public_profile","user_friends","email"]},"response":{"fbPermissions":["public_profile","user_friends","email"],"type":"startup","token":"","table":{"type":"localesData","token":"A619828KAIJ6D3"}},"presponse":{"fbPermissions":[],"type":"","token":"","table":{}}}
    UString result, reqJson = U_STRING_FROM_CONSTANT("{"
    "\"organizations\":[{\"name\":\"Temple University\",\"index\":\"S119\"},{\"name\":\"Tennessee State University\",\"index\":\"S266\"},{\"name\":\"Tennessee Technological University\",\"index\":\"S224\"},{\"name\":\"Texas A&M University--College Station\",\"index\":\"S75\"},{\"name\":\"Texas A&M University--Commerce\",\"index\":\"S267\"}],"
    "\"vrequests\":[],"
@@ -1104,15 +1082,35 @@ static void testMultiple()
 
    U_INTERNAL_ASSERT(ok)
 
-// JSON_stringify(result, json_obj, multiple);
+   JSON_stringify(result, json_obj, multiple);
+
 // (void) UFile::writeToTmp(U_STRING_TO_PARAM(result), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("test_json.%P"), 0);
-// U_ASSERT_EQUALS( result, reqJson )
+
+   U_ASSERT_EQUALS( result, reqJson )
 
    result.clear();
 
    JSON_OBJ_stringify(result, multiple);
 
    U_ASSERT_EQUALS( result, reqJson )
+}
+
+// Do a query and print the results
+
+static void testQuery(const UString& json, const char* cquery, const UString& expected)
+{
+   U_TRACE(5, "testQuery(%V,%S,%V)", json.rep, cquery, expected.rep)
+
+   char buffer[4096];
+   UString result, query(cquery, strlen(cquery));
+   int dataType = UValue::jread(json, query, result);
+
+   cout.write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("dataType = (%d %S) query = %V result(%u) = %V UValue::jread_elements = %d "
+                                                                              "UValue::jread_error = (%d %S)\n"),
+              dataType, UValue::getDataTypeDescription(dataType), query.rep, result.size(), result.rep, UValue::jread_elements, UValue::jread_error,
+              UValue::getJReadErrorDescription()));
+
+   U_INTERNAL_ASSERT_EQUALS(result, expected)
 }
 
 int
@@ -1389,6 +1387,14 @@ U_EXPORT main (int argc, char* argv[], char* env[])
    JSON_stringify(result1, json_vec, v);
 
    U_ASSERT_EQUALS(result1, vecJson)
+
+   result1.clear();
+
+   JSON_OBJ_stringify(result1, v);
+
+// (void) UFile::writeToTmp(U_STRING_TO_PARAM(result1), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("test_json.%P"), 0);
+
+   U_ASSERT_EQUALS( result1, vecJson )
 
    v.clear();
 

@@ -293,6 +293,8 @@ protected:
    static void writeData(struct iovec* iov, bool bdata, bool flag);
    static void handlerDelete(UClientImage_Base* pclient, bool& bsocket_open);
 
+   static unsigned char* setHpackHeaders(unsigned char* dst, const UString& headers);
+
    static void startRequest()
       {
       U_TRACE_NO_PARAM(0, "UHTTP2::startRequest()")
@@ -302,6 +304,8 @@ protected:
       UHTTP::startRequest();
 
       U_http_version = '2';
+
+      UClientImage_Base::resetBuffer();
       }
 
    static void resetDataRead()
@@ -384,9 +388,9 @@ protected:
 
       if (U_http_info.query)
          {
-         U_http_info.query_len = U_http_info.uri_len - (U_http_info.query++ - U_http_info.uri);
+         U_http_info.uri_len = U_http_info.query++ - ptr;
 
-         U_http_info.uri_len -= U_http_info.query_len;
+         U_http_info.query_len = len - U_http_info.uri_len - 1;
 
          U_INTERNAL_DUMP("query = %.*S", U_HTTP_QUERY_TO_TRACE)
          }

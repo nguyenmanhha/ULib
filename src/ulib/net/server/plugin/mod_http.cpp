@@ -130,7 +130,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::maintenance_mode_page, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::maintenance_mode_page, U_NULLPTR)
 
          U_NEW(UString, UHTTP::maintenance_mode_page, UString(x));
 
@@ -162,7 +162,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
             if (n < 2) U_ERROR("UHttpPlugIn::handlerConfig(): vector ALIAS malformed: %S", x.rep);
 
-            U_INTERNAL_ASSERT_EQUALS(UHTTP::valias, 0)
+            U_INTERNAL_ASSERT_EQUALS(UHTTP::valias, U_NULLPTR)
 
             U_NEW(UVector<UString>, UHTTP::valias, UVector<UString>(vec, n));
             }
@@ -178,7 +178,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
          if (n < 2) U_ERROR("UHttpPlugIn::handlerConfig(): vector REWRITE_RULE_NF malformed: %S", x.rep);
 
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::vRewriteRule, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::vRewriteRule, U_NULLPTR)
 
          U_NEW(UVector<UHTTP::RewriteRule*>, UHTTP::vRewriteRule, UVector<UHTTP::RewriteRule*>(n));
 
@@ -207,7 +207,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::cache_file_mask, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::cache_file_mask, U_NULLPTR)
 
          if (x.findWhiteSpace() != U_NOT_FOUND) x = UStringExt::removeWhiteSpace(x);
 
@@ -218,7 +218,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::cache_avoid_mask, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::cache_avoid_mask, U_NULLPTR)
 
          if (x.findWhiteSpace() != U_NOT_FOUND) x = UStringExt::removeWhiteSpace(x);
 
@@ -229,7 +229,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::nocache_file_mask, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::nocache_file_mask, U_NULLPTR)
 
          if (x.findWhiteSpace() != U_NOT_FOUND) x = UStringExt::removeWhiteSpace(x);
 
@@ -241,7 +241,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::cache_file_store, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::cache_file_store, U_NULLPTR)
 
          if (x.findWhiteSpace() != U_NOT_FOUND) x = UStringExt::removeWhiteSpace(x);
 
@@ -255,7 +255,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::cgi_cookie_option, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::cgi_cookie_option, U_NULLPTR)
 
          U_NEW(UString, UHTTP::cgi_cookie_option, UString(x));
          }
@@ -267,7 +267,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::uri_strict_transport_security_mask, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::uri_strict_transport_security_mask, U_NULLPTR)
 
          if (x.findWhiteSpace() != U_NOT_FOUND) x = UStringExt::removeWhiteSpace(x);
 
@@ -296,7 +296,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 #     ifdef U_CLASSIC_SUPPORT
          if (UServer_Base::isClassic())
             {
-            UServer_Base::handler_inotify = 0;
+            UServer_Base::handler_inotify = U_NULLPTR;
 
             U_SRV_LOG("WARNING: Sorry, I can't enable inode based directory notification because PREFORK_CHILD == 1 (server classic mode)");
             }
@@ -305,7 +305,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 #     if defined(ENABLE_THREAD) && defined(U_SERVER_THREAD_APPROACH_SUPPORT)
          if (UNotifier::pthread) // NB: we ask to notify for change of file system (inotify), in the thread approach this is not safe so far...
             {
-            UServer_Base::handler_inotify = 0;
+            UServer_Base::handler_inotify = U_NULLPTR;
 
             U_SRV_LOG("WARNING: Sorry, I can't enable inode based directory notification because PREFORK_CHILD == -1 (server thread approach)");
             }
@@ -337,7 +337,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::uri_protected_mask, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::uri_protected_mask, U_NULLPTR)
 
          if (x.findWhiteSpace() != U_NOT_FOUND) x = UStringExt::removeWhiteSpace(x);
 
@@ -348,14 +348,14 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::vallow_IP, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::vallow_IP, U_NULLPTR)
 
          U_NEW(UVector<UIPAllow*>, UHTTP::vallow_IP, UVector<UIPAllow*>);
 
          if (UIPAllow::parseMask(x, *UHTTP::vallow_IP) == 0)
             {
             delete UHTTP::vallow_IP;
-                   UHTTP::vallow_IP = 0;
+                   UHTTP::vallow_IP = U_NULLPTR;
             }
          }
 
@@ -363,7 +363,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::uri_request_cert_mask, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::uri_request_cert_mask, U_NULLPTR)
 
          if (x.findWhiteSpace() != U_NOT_FOUND) x = UStringExt::removeWhiteSpace(x);
 
@@ -381,7 +381,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
          uint32_t size = cfg.readLong(U_CONSTANT_TO_PARAM("LOG_FILE_SIZE"));
 
-         U_INTERNAL_ASSERT_EQUALS(UServer_Base::apache_like_log, 0)
+         U_INTERNAL_ASSERT_EQUALS(UServer_Base::apache_like_log, U_NULLPTR)
 
          U_NEW(ULog, UServer_Base::apache_like_log, ULog(x, size));
 
@@ -390,7 +390,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
             {
             uint32_t log_rotate_size = size + (size / 10) + 12U;
 
-            UServer_Base::apache_like_log->setShared(0, log_rotate_size, (UServer_Base::bssl == false));
+            UServer_Base::apache_like_log->setShared(U_NULLPTR, log_rotate_size, (UServer_Base::bssl == false));
 
             U_SRV_LOG("Mapped %u bytes (%u KB) of shared memory for apache like log", log_rotate_size, log_rotate_size / 1024);
             }
@@ -420,7 +420,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::php_mount_point, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::php_mount_point, U_NULLPTR)
 
          U_NEW(UString, UHTTP::php_mount_point, UString(x));
          }
@@ -430,7 +430,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::ruby_libdir, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::ruby_libdir, U_NULLPTR)
 
          U_NEW(UString, UHTTP::ruby_libdir, UString(x));
          }
@@ -441,7 +441,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::py_project_app, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::py_project_app, U_NULLPTR)
 
          U_NEW(UString, UHTTP::py_project_app, UString(x));
          }
@@ -450,7 +450,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::py_project_root, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::py_project_root, U_NULLPTR)
 
          U_NEW(UString, UHTTP::py_project_root, UString(x));
          }
@@ -459,7 +459,7 @@ int UHttpPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         U_INTERNAL_ASSERT_EQUALS(UHTTP::py_virtualenv_path, 0)
+         U_INTERNAL_ASSERT_EQUALS(UHTTP::py_virtualenv_path, U_NULLPTR)
 
          U_NEW(UString, UHTTP::py_virtualenv_path, UString(x));
          }
@@ -514,7 +514,7 @@ int UHttpPlugIn::handlerInit()
                   ((USSLSocket*)UServer_Base::socket)->getConfigurationModel(), ((USSLSocket*)UServer_Base::socket)->getProtocolList());
 
 #  if defined(ENABLE_THREAD) && !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
-      U_INTERNAL_ASSERT_EQUALS(USSLSocket::staple.data, 0)
+      U_INTERNAL_ASSERT_EQUALS(USSLSocket::staple.data, U_NULLPTR)
 
       USSLSocket::staple.data = UServer_Base::getOffsetToDataShare(U_OCSP_MAX_RESPONSE_SIZE);
 #  endif

@@ -29,6 +29,7 @@
  */
 
 class UHTTP;
+class UValue;
 class UThreadPool;
 class UHttpPlugIn;
 class UFileConfig;
@@ -430,6 +431,7 @@ protected:
 private:
    U_DISALLOW_ASSIGN(UVector<void*>)
 
+   friend class UValue;
    friend class UThreadPool;
 
    template <class T> friend class UOrmTypeHandler;
@@ -785,7 +787,7 @@ public:
          U_RETURN_POINTER(elem, T);
          }
 
-      U_RETURN_POINTER(0, T);
+      U_RETURN_POINTER(U_NULLPTR, T);
       }
 
    // EXTENSION
@@ -949,7 +951,7 @@ public:
       }
 
    explicit UVector(const UString& str,       char  delim);
-   explicit UVector(const UString& str, const char* delim = 0);
+   explicit UVector(const UString& str, const char* delim = U_NULLPTR);
 
    explicit UVector(UVector<UString>& source, uint32_t n) : UVector<UStringRep*>(n)
       {
@@ -1014,7 +1016,7 @@ public:
 
       U_CHECK_MEMORY
 
-      if (empty()) return 0;
+      if (empty()) return U_NULLPTR;
 
       UStringRep* rep = UVector<UStringRep*>::at(pos);
 
@@ -1178,9 +1180,9 @@ public:
    UString join(const char* delim, uint32_t delim_len);
 
    uint32_t split(const    char* str, uint32_t len,       char  delim);
-   uint32_t split(const UString& str,                     char  delim);     // NB: use substr(), so dependency from str...
-   uint32_t split(const    char* str, uint32_t len, const char* delim = 0);
-   uint32_t split(const UString& str,               const char* delim = 0); // NB: use substr(), so dependency from str...
+   uint32_t split(const UString& str,                     char  delim);             // NB: use substr(), so dependency from str...
+   uint32_t split(const    char* str, uint32_t len, const char* delim = U_NULLPTR);
+   uint32_t split(const UString& str,               const char* delim = U_NULLPTR); // NB: use substr(), so dependency from str...
 
    uint32_t loadFromData(const UString& str) { (void) loadFromData(U_STRING_TO_PARAM(str)); return _length; }
 

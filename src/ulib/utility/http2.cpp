@@ -32,6 +32,8 @@ UHTTP2::Connection*           UHTTP2::vConnection;
 UHTTP2::Connection*           UHTTP2::pConnection;
 UHTTP2::HpackHeaderTableEntry UHTTP2::hpack_static_table[61];
 
+#define U_HTTP2_TIMEOUT_MS (10L * 1000L) // 10 second timeout
+
 #ifdef DEBUG
 #  ifndef UINT16_MAX
 #  define UINT16_MAX 65535
@@ -134,7 +136,7 @@ UHTTP2::Connection::Connection() : itable(53, setIndexStaticTable)
    reset();
 
    state      = CONN_STATE_IDLE; 
-   bug_client = 0;
+   bug_client = U_NULLPTR;
 
    (void) memset(&idyntbl, 0, sizeof(HpackDynamicTable));
    (void) memset(&odyntbl, 0, sizeof(HpackDynamicTable));
@@ -776,8 +778,8 @@ void UHTTP2::addHpackDynTblEntry(HpackDynamicTable* dyntbl, const UString& name,
 
    HpackHeaderTableEntry* entry = dyntbl->entries + dyntbl->entry_start_index;
 
-   U_INTERNAL_ASSERT_EQUALS(entry->name, 0)
-   U_INTERNAL_ASSERT_EQUALS(entry->value, 0)
+   U_INTERNAL_ASSERT_EQUALS(entry->name, U_NULLPTR)
+   U_INTERNAL_ASSERT_EQUALS(entry->value, U_NULLPTR)
 
    // NB: we increases the reference string...
 
@@ -1812,12 +1814,7 @@ void UHTTP2::decodeHeaders()
 
          UString value = table->at(UString::str_path->rep);
 
-         if (value)
-            {
-            U_INTERNAL_DUMP("value = %V", value.rep)
-
-            setURI(value);
-            }
+         if (value) setURI(value);
          }
 
       U_INTERNAL_DUMP("U_http_is_accept_gzip = %b U_http_method_type = %B U_http_method_num = %d U_http_host_len = %u U_HTTP_HOST = %.*S U_http_host_vlen = %u U_HTTP_VHOST = %.*S",
@@ -2099,11 +2096,11 @@ loop:
       {
       if (UClientImage_Base::rbuffer->size() == UClientImage_Base::rstart) resetDataRead();
 
-      if (USocketExt::read(UServer_Base::csocket, *UClientImage_Base::rbuffer, U_SINGLE_READ, U_SSL_TIMEOUT_MS, UHTTP::request_read_timeout) == false)
+      if (USocketExt::read(UServer_Base::csocket, *UClientImage_Base::rbuffer, U_SINGLE_READ, U_HTTP2_TIMEOUT_MS, UHTTP::request_read_timeout) == false)
          {
-         nerror = ERROR_INCOMPLETE;
+         if (UServer_Base::csocket->isClosed()) nerror = PROTOCOL_ERROR;
 
-         goto end;
+         return;
          }
       }
 
@@ -2141,11 +2138,11 @@ loop:
                                                              UClientImage_Base::rstart = 0;
          }
 
-      if (USocketExt::read(UServer_Base::csocket, *UClientImage_Base::rbuffer, len, U_SSL_TIMEOUT_MS, UHTTP::request_read_timeout) == false)
+      if (USocketExt::read(UServer_Base::csocket, *UClientImage_Base::rbuffer, len, U_HTTP2_TIMEOUT_MS, UHTTP::request_read_timeout) == false)
          {
-         nerror = ERROR_INCOMPLETE;
+         if (UServer_Base::csocket->isClosed()) nerror = PROTOCOL_ERROR;
 
-         goto end;
+         return;
          }
       }
 
@@ -2404,6 +2401,10 @@ window_update:
             pConnection->inp_window = (HTTP2_MAX_WINDOW_SIZE + pConnection->inp_window);
 
             sendWindowUpdate();
+
+            U_INTERNAL_DUMP("nerror = %u", nerror)
+
+            if (nerror != NO_ERROR) goto end;
             }
 
          goto loop;
@@ -2567,6 +2568,25 @@ unsigned char* UHTTP2::hpackEncodeHeader(unsigned char* dst, const UString& name
       }
 
    dst = hpackEncodeString(dst, value, true);
+
+   U_RETURN_POINTER(dst, unsigned char);
+}
+
+unsigned char* UHTTP2::setHpackHeaders(unsigned char* dst, const UString& headers)
+{
+   U_TRACE(0, "UHTTP2::setHpackHeaders(%p,%V)", dst, headers.rep)
+
+   UString row, key;
+   UVector<UString> vext(20);
+
+   for (uint32_t i = 0, n = vext.split(headers, U_CRLF); i < n; ++i)
+      {
+      row = vext[i];
+
+      uint32_t pos = row.find_first_of(':');
+
+      dst = hpackEncodeHeader(dst, row.substr(0U, pos), row.substr(pos+2)); 
+      }
 
    U_RETURN_POINTER(dst, unsigned char);
 }
@@ -2744,21 +2764,26 @@ void UHTTP2::handlerResponse()
 
    if (sz2)
       {
-      UString row, key;
-      UVector<UString> vext(20);
-
-      for (uint32_t i = 0, n = vext.split(*UHTTP::ext, U_CRLF); i < n; ++i)
+      if (UClientImage_Base::isRequestFileCacheProcessed())
          {
-         row = vext[i];
+         U_ASSERT_EQUALS(UHTTP::ext->isPrintable(0, true), false)
 
-         uint32_t pos = row.find_first_of(':');
+         U_MEMCPY(dst, UHTTP::ext->data(), sz2);
 
-         dst = hpackEncodeHeader(dst, row.substr(0U, pos), row.substr(pos+2)); 
+         dst += sz2;
+         }
+      else
+         {
+         U_ASSERT(UHTTP::ext->isPrintable(0, true))
+
+         dst = setHpackHeaders(dst, *UHTTP::ext);
          }
       }
-   else // content-length: 0
+   else
       {
       /**
+       * content-length: 0
+       *
        * dst = hpackEncodeInt(dst, 28, (1<<4)-1, 0x00);
        * dst = hpackEncodeString(dst, U_CONSTANT_TO_PARAM("0"), false);
        */
@@ -2839,6 +2864,8 @@ loop1:
 
       return;
       }
+
+   U_DEBUG("UHTTP2::writeData(%p,%b,%b) - User-Agent: = %.*S", iov, bdata, flag, U_HTTP_USER_AGENT_TO_TRACE)
 
    uint32_t iovcnt, count;
    struct iovec iov_vec[1024];
@@ -2979,9 +3006,7 @@ void UHTTP2::writeResponse()
 
    // we must wait for a Window Update frame if the current window size is not sufficient...
 
-#ifdef DEBUG
-   Stream* pStreamEndOld = pStreamEnd;
-#endif
+   Stream* pStreamOld = pStream;
 
 loop:
    readFrame();
@@ -2991,7 +3016,10 @@ loop:
    if (nerror == NO_ERROR)
       {
       U_INTERNAL_ASSERT_MAJOR(pConnection->out_window, 0)
-      U_INTERNAL_ASSERT_EQUALS(pStreamEnd, pStreamEndOld)
+
+      U_INTERNAL_DUMP("pStreamOld = %u pStream = %u", pStreamOld, pStream)
+
+      pStream = pStreamOld;
 
       iov_vec[2].iov_len  = HTTP2_FRAME_HEADER_SIZE;
       iov_vec[3].iov_base = ptr;
@@ -3343,7 +3371,7 @@ next1: // maybe we have read more data than necessary...
 
          UClientImage_Base::rbuffer->setEmptyForce();
 
-         if (USocketExt::read(UServer_Base::csocket, *UClientImage_Base::rbuffer, U_SINGLE_READ, U_SSL_TIMEOUT_MS, UHTTP::request_read_timeout) == false) goto err;
+         if (USocketExt::read(UServer_Base::csocket, *UClientImage_Base::rbuffer, U_SINGLE_READ, U_HTTP2_TIMEOUT_MS, UHTTP::request_read_timeout) == false) goto err;
 
          UClientImage_Base::rstart = 0;
 
@@ -3388,6 +3416,8 @@ read_request:
 
       if (sz == 0)
          {
+         // sz = 0 U_http_info.uri_len = 0 U_http2_settings_len = 0 U_ClientImage_close = false
+
          if (U_http2_settings_len)
             {
             // NB: not OPTION upgrade...
@@ -3401,8 +3431,9 @@ read_request:
 
          U_INTERNAL_ASSERT_EQUALS(U_http_info.uri_len, 0)
 
-         if (bsetting_send &&
-             U_ClientImage_close == false)
+         if (bsetting_send                &&
+             U_ClientImage_close == false &&
+             UServer_Base::csocket->isTimeout() == false)
             {
             goto read_request; // NB: OPTION upgrade, we need a HEADERS frame...
             }
@@ -3437,9 +3468,32 @@ read_request:
       pStream = pConnection->streams;
 
 loop: U_DUMP("pStream->id = %u pStream->state = (%u, %s) pStream->headers(%u) = %V pStream->clength = %u pStream->body(%u) = %V",
-              pStream->id, pStream->state, getStreamStatusDescription(), sz, pStream->headers.rep, pStream->clength, pStream->body.size(), pStream->body.rep)
+              pStream->id, pStream->state, getStreamStatusDescription(), pStream->headers.size(), pStream->headers.rep, pStream->clength, pStream->body.size(), pStream->body.rep)
 
-      if (pStream->state <= STREAM_STATE_OPEN) goto read_request;
+      if (pStream->state <= STREAM_STATE_OPEN)
+         {
+         if (pStream->body)
+            {
+            // maybe we must wait for other DATA frames for the stream...
+
+            U_INTERNAL_DUMP("pConnection->inp_window = %d", pConnection->inp_window)
+
+            if (pConnection->inp_window < 8192) // Send Window Update if current window size is not sufficient
+               {
+               pConnection->inp_window = HTTP2_MAX_WINDOW_SIZE - pConnection->inp_window;
+
+               sendWindowUpdate();
+
+               U_INTERNAL_DUMP("nerror = %u", nerror)
+
+               if (nerror != NO_ERROR) goto err;
+
+               pConnection->inp_window = HTTP2_MAX_WINDOW_SIZE;
+               }
+            }
+
+         goto read_request;
+         }
 
       if (pStream->headers)
          {
@@ -3455,7 +3509,11 @@ process_request:
             {
             // NB: to avoid GOAWAY frame with error (6, FRAME_SIZE_ERROR) in writeResponse()...
 
-            if (u_get_unalignedp32(u_clientimage_info.http_info.user_agent) == U_MULTICHAR_CONSTANT32('S','p','o','t'))
+            if (u_get_unalignedp64(u_clientimage_info.http_info.user_agent) == U_MULTICHAR_CONSTANT64('M','o','z','i','l','l','a','/'))
+               {
+               pConnection->bug_client = "Mozilla"; // Mozilla/5.0 (iPad; CPU OS 9_3_5 like Mac OS X) AppleWebKit/601.1.46 (KHTML, like Gecko) Version/9.0 Mobile/13G36 Safari/601.1
+               }
+            else if (u_get_unalignedp32(u_clientimage_info.http_info.user_agent) == U_MULTICHAR_CONSTANT32('S','p','o','t'))
                {
                pConnection->bug_client = "Spot"; // "Spot/1.0 (iPhone; iOS 10.3.1; Scale/3.00)"
                }
@@ -3753,7 +3811,7 @@ void UHTTP2::sendGoAway(USocket* psocket)
 
    const char* descr = getFrameErrorCodeDescription(nerror);
 
-   U_SRV_LOG("send GOAWAY frame with error (%u, %s)", nerror, descr);
+   if (nerror) U_SRV_LOG("send GOAWAY frame with error (%u, %s)", nerror, descr);
 
    pConnection->state = CONN_STATE_IS_CLOSING;
 
@@ -3818,7 +3876,7 @@ void UHTTP2::clearHpackDynTbl(HpackDynamicTable* dyntbl)
          entry->value->release();
 
          entry->name  =
-         entry->value = 0;
+         entry->value = U_NULLPTR;
 
          if (++index == dyntbl->entry_capacity) index = 0;
 
@@ -4015,6 +4073,6 @@ U_EXPORT const char* UHTTP2::Connection::dump(bool reset) const
       return UObjectIO::buffer_output;
       }
 
-   return 0;
+   return U_NULLPTR;
 }
 #endif

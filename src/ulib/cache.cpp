@@ -63,9 +63,9 @@ U_NO_EXPORT void UCache::init(UFile& _x, uint32_t size, bool bexist, bool brdonl
       }
 }
 
-bool UCache::open(const UString& path, uint32_t size, const UString* environment)
+bool UCache::open(const UString& path, uint32_t size, const UString* environment, bool btemp)
 {
-   U_TRACE(0, "UCache::open(%V,%u,%p)", path.rep, size, environment)
+   U_TRACE(0, "UCache::open(%V,%u,%p,%b)", path.rep, size, environment, btemp)
 
    U_CHECK_MEMORY
 
@@ -74,6 +74,8 @@ bool UCache::open(const UString& path, uint32_t size, const UString* environment
    if (_x.creat(O_RDWR))
       {
       init(_x, size, (_x.size() ? true : ((void)_x.ftruncate(size), false)), false);
+
+      if (btemp) (void) _x._unlink();
 
       U_RETURN(true);
       }
@@ -189,7 +191,7 @@ char* UCache::add(const char* key, uint32_t keylen, uint32_t datalen, uint32_t _
             {
             U_ERROR("Cache exhausted");
 
-            U_RETURN((char*)0);
+            U_RETURN((char*)U_NULLPTR);
             }
 
          info->unused = info->writer;
@@ -535,7 +537,7 @@ const char* UCache::dump(bool _reset) const
       return UObjectIO::buffer_output;
       }
 
-   return 0;
+   return U_NULLPTR;
 }
 #  endif
 #endif

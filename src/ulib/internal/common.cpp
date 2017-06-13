@@ -101,7 +101,7 @@ static struct ustringrep u_empty_string_rep_storage = {
    (void*)U_CHECK_MEMORY_SENTINEL, /* memory_error (_this) */
 # endif
 # if defined(U_SUBSTR_INC_REF) || defined(DEBUG)
-   0, /* parent - substring increment reference of source string */
+   U_NULLPTR, /* parent - substring increment reference of source string */
 #  ifdef DEBUG
    0, /* child  - substring capture event 'DEAD OF SOURCE STRING WITH CHILD ALIVE'... */
 #  endif
@@ -195,7 +195,7 @@ void ULib::init(const char* mempool, char** argv)
 
 #if defined(DEBUG) && defined(U_STDCPP_ENABLE)
 # ifdef DEBUG
-   UMemoryPool::obj_class = UMemoryPool::func_call = 0;
+   UMemoryPool::obj_class = UMemoryPool::func_call = U_NULLPTR;
 # endif
    UObjectIO::init((char*)UMemoryPool::pop(U_SIZE_TO_STACK_INDEX(U_MAX_SIZE_PREALLOCATE)), U_MAX_SIZE_PREALLOCATE);
 #endif
@@ -241,7 +241,7 @@ void ULib::init(const char* mempool, char** argv)
    U_INTERNAL_ASSERT_EQUALS(sizeof(UStringRep), sizeof(ustringrep))
 
 #if defined(U_STATIC_ONLY)
-   if (UStringRep::string_rep_null == 0)
+   if (UStringRep::string_rep_null == U_NULLPTR)
       {
       UString::string_null        = uustringnull.p2;
       UStringRep::string_rep_null = uustringrepnull.p2;
@@ -268,7 +268,7 @@ void ULib::init(const char* mempool, char** argv)
 
 #if defined(USE_LIBSSL)
 # if OPENSSL_VERSION_NUMBER >= 0x10100003L
-   (void) U_SYSCALL(OPENSSL_init_ssl, "%llu,%S", OPENSSL_INIT_LOAD_CONFIG, 0);
+   (void) U_SYSCALL(OPENSSL_init_ssl, "%llu,%S", OPENSSL_INIT_LOAD_CONFIG, U_NULLPTR);
 # else
 #  ifdef HAVE_OPENSSL_97
    U_SYSCALL_VOID(OPENSSL_config, "%S", 0);

@@ -60,9 +60,9 @@ public:
 
       fd = -1;
 
-      x     = 0;
+      x     = U_NULLPTR;
       ttl   = 0;
-      info  = 0;
+      info  = U_NULLPTR;
       start = 0;
 
 #  ifdef DEBUG
@@ -74,8 +74,8 @@ public:
 
    // OPEN/CREAT a cache file
 
-   bool open(const UString& path, uint32_t size,               const UString* environment = 0);
-   bool open(const UString& path, const UString& dir_template, const UString* environment = 0, bool brdonly = false);
+   bool open(const UString& path, uint32_t size,               const UString* environment = U_NULLPTR, bool btemp   = false);
+   bool open(const UString& path, const UString& dir_template, const UString* environment = U_NULLPTR, bool brdonly = false);
 
    // OPERATION
 
@@ -95,12 +95,33 @@ public:
    void add(       const UString& key, const UString& data,    uint32_t _ttl = 0);
    void addContent(const UString& key, const UString& content, uint32_t _ttl = 0); // NB: +null terminator...
 
+   void add(uint32_t id, uint32_t number, uint32_t _ttl = 0)
+      {
+      U_TRACE(0, "UCache::add(%u,%u,%u)", id, number, _ttl)
+
+      char* ptr = add((const char*)&id, sizeof(uint32_t), sizeof(uint32_t), _ttl);
+
+      u_put_unalignedp32(ptr,                  id);
+      u_put_unalignedp32(ptr+sizeof(uint32_t), number);
+      }
+
    UString get(       const char* key, uint32_t len);
    UString getContent(const char* key, uint32_t len); // NB: -null terminator...
 
+   uint32_t getNumber(uint32_t id)
+      {
+      U_TRACE(0, "UCache::getNumber(%u)", id)
+
+      UString content = get((const char*)&id, sizeof(uint32_t));
+
+      uint32_t number = u_get_unalignedp32(content.data());
+
+      U_RETURN(number);
+      }
+
    UString getContent(const UString& key) { return getContent(U_STRING_TO_PARAM(key)); }
 
-   void loadContentOf(const UString& directory, const char* filter = 0, uint32_t filter_len = 0);
+   void loadContentOf(const UString& directory, const char* filter = U_NULLPTR, uint32_t filter_len = 0);
 
    // operator []
 

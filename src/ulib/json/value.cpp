@@ -15,10 +15,13 @@
 #include <ulib/json/value.h>
 #include <ulib/utility/escape.h>
 
-int      UValue::jsonParseFlags;
-char*    UValue::pstringify;
-UValue*  UValue::pnode;
-uint32_t UValue::size;
+int                       UValue::pos;
+int                       UValue::jsonParseFlags;
+char*                     UValue::pstringify;
+uint32_t                  UValue::size;
+UValue::jval              UValue::o;
+UValue::parser_stack_data UValue::sd[U_JSON_PARSE_STACK_SIZE];
+
 #ifdef DEBUG
 uint32_t UValue::cnt_real;
 uint32_t UValue::cnt_mreal;
@@ -197,7 +200,7 @@ __pure UValue* UValue::at(uint32_t pos) const
          }
       }
 
-   U_RETURN_POINTER(0, UValue);
+   U_RETURN_POINTER(U_NULLPTR, UValue);
 }
 
 __pure UValue* UValue::at(const char* key, uint32_t key_len) const
@@ -224,7 +227,7 @@ __pure UValue* UValue::at(const char* key, uint32_t key_len) const
          }
       }
 
-   U_RETURN_POINTER(0, UValue);
+   U_RETURN_POINTER(U_NULLPTR, UValue);
 }
 
 uint32_t UValue::getMemberNames(UVector<UString>& members) const
@@ -234,7 +237,7 @@ uint32_t UValue::getMemberNames(UVector<UString>& members) const
    if (getTag() == OBJECT_VALUE)
       {
       UValue* element = toNode();
-      uint32_t sz, n = members.size();
+      uint32_t len, n = members.size();
 
       while (element)
          {
@@ -251,9 +254,9 @@ uint32_t UValue::getMemberNames(UVector<UString>& members) const
          element = element->next;
          }
 
-      sz = members.size() - n;
+      len = members.size() - n;
 
-      U_RETURN(sz);
+      U_RETURN(len);
       }
 
    U_RETURN(0);
@@ -280,11 +283,11 @@ UString UValue::getString(uint64_t value)
 
    U_INTERNAL_ASSERT_EQUALS(type, UTF_VALUE)
 
-   uint32_t sz = rep->size();
+   uint32_t len = rep->size();
 
-   UString str(sz);
+   UString str(len);
 
-   UEscape::decode(rep->data(), sz, str);
+   UEscape::decode(rep->data(), len, str);
 
    U_RETURN_STRING(str);
 }
@@ -295,11 +298,11 @@ void UValue::emitUTF(UStringRep* rep) const
 
    U_INTERNAL_DUMP("rep = %V", rep)
 
-   uint32_t sz = rep->size();
+   uint32_t len = rep->size();
 
-   UString str(sz);
+   UString str(len);
 
-   UEscape::decode(rep->data(), sz, str);
+   UEscape::decode(rep->data(), len, str);
 
    *pstringify++ = '"';
 
@@ -676,10 +679,6 @@ case_null:
    pstringify += U_CONSTANT_SIZE("null");
 }
 
-#ifndef U_JSON_PARSE_STACK_SIZE
-#define U_JSON_PARSE_STACK_SIZE 256
-#endif
-
 bool UValue::parse(const UString& document)
 {
    U_TRACE(0, "UValue::parse(%V)", document.rep)
@@ -784,28 +783,23 @@ bool UValue::parse(const UString& document)
 #ifdef DEBUG
    cnt_real  =
    cnt_mreal = 0;
+
    double tmp;
 #endif
+
    double val;
    const char* p;
-   UStringRep* rep;
    unsigned char c;
+   UStringRep* rep;
    const char* start;
+   int gexponent, type;
    uint64_t integerPart;
-   union jval o = {0ULL};
-   int pos = -1, gexponent, type;
    const char* s = document.data();
    const char* end = s + (size = document.size());
    uint32_t sz, significandDigit, decimalDigit, exponent;
    bool minus = false, colon = false, comma = false, separator = true;
 
-   struct stack_data {
-      uint64_t keys;
-      UValue* tails;
-          bool tags;
-   };
-
-   struct stack_data sd[U_JSON_PARSE_STACK_SIZE];
+   initParser();
 
    U_INTERNAL_DUMP("jsonParseFlags = %d", jsonParseFlags)
 
@@ -880,9 +874,11 @@ dquote:
       goto dquote;
 
 dquote_assign:
-      if ((sz = s++ - ++start))
+      sz = s++ - ++start;
+
+      if (sz)
          {
-         U_DUMP("type = (%d,%S) string(%u) = %.*S", type, getDataTypeDescription(type), sz, sz, start)
+         U_DUMP("type = (%d,%S)", type, getDataTypeDescription(type))
 
          if ((jsonParseFlags & STRING_COPY) == 0)
             {
@@ -991,7 +987,7 @@ case_zero:
          {
 zero:    if (c == '.') goto case_number;
 
-         o.ival = getJsonValue(UINT_VALUE, 0);
+         o.ival = getJsonValue(UINT_VALUE, U_NULLPTR);
 
          goto next;
          }
@@ -1086,21 +1082,21 @@ case_number:
 #     ifndef U_COVERITY_FALSE_POSITIVE // Control flow issues (MISSING_BREAK)
          switch (decimalDigit)
             {
-            case 15: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-15] - '0');
-            case 14: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-14] - '0');
-            case 13: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-13] - '0');
-            case 12: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-12] - '0');
-            case 11: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-11] - '0');
-            case 10: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-10] - '0');
-            case  9: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 9] - '0');
-            case  8: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 8] - '0');
-            case  7: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 7] - '0');
-            case  6: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 6] - '0');
-            case  5: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 5] - '0');
-            case  4: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 4] - '0');
-            case  3: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 3] - '0');
-            case  2: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 2] - '0');
-            case  1: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 1] - '0');
+            case 15: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-15] - '0'); /* FALLTHRU */
+            case 14: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-14] - '0'); /* FALLTHRU */
+            case 13: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-13] - '0'); /* FALLTHRU */
+            case 12: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-12] - '0'); /* FALLTHRU */
+            case 11: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-11] - '0'); /* FALLTHRU */
+            case 10: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-10] - '0'); /* FALLTHRU */
+            case  9: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 9] - '0'); /* FALLTHRU */
+            case  8: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 8] - '0'); /* FALLTHRU */
+            case  7: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 7] - '0'); /* FALLTHRU */
+            case  6: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 6] - '0'); /* FALLTHRU */
+            case  5: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 5] - '0'); /* FALLTHRU */
+            case  4: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 4] - '0'); /* FALLTHRU */
+            case  3: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 3] - '0'); /* FALLTHRU */
+            case  2: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 2] - '0'); /* FALLTHRU */
+            case  1: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 1] - '0'); /* FALLTHRU */
             }
 #     endif
 
@@ -1130,7 +1126,7 @@ exp:     if (u__issign((c = *++s))) ++s;
          U_INTERNAL_DUMP("exponent = %u significandDigit = %u", exponent, significandDigit)
 
          // Use fast path for string-to-double conversion if possible
-         // see http://www.exploringbinary.com/fast-path-decimal-to-floating-point-conversion/
+         // @see http://www.exploringbinary.com/fast-path-decimal-to-floating-point-conversion/
 
          if (c == '-')
             {
@@ -1181,7 +1177,7 @@ noreal:
 
          U_INTERNAL_DUMP("value(%.*S) = %u", s-start, start, (uint32_t)integerPart)
 
-         U_INTERNAL_ASSERT_EQUALS((uint32_t)integerPart, ::strtoul(start, 0, 10))
+         U_INTERNAL_ASSERT_EQUALS((uint32_t)integerPart, ::strtoul(start, U_NULLPTR, 10))
          }
       else
          {
@@ -1198,7 +1194,7 @@ noreal:
 
          U_INTERNAL_DUMP("value(%.*S) = %d", s-(start-1), start-1, -(int32_t)integerPart)
 
-         U_INTERNAL_ASSERT_EQUALS(-(int32_t)integerPart, ::strtol(start-1, 0, 10))
+         U_INTERNAL_ASSERT_EQUALS(-(int32_t)integerPart, ::strtol(start-1, U_NULLPTR, 10))
          }
 
       goto next;
@@ -1229,7 +1225,7 @@ mreal1:
 
       if (minus) --start;
 
-      tmp = ::strtod(start, 0);
+      tmp = ::strtod(start, U_NULLPTR);
 #  endif
 
       o.real = minus ? (minus = false, -val) : val;
@@ -1272,7 +1268,7 @@ case_svector:
          U_INTERNAL_ASSERT_MINOR(pos, U_JSON_PARSE_STACK_SIZE)
 
          sd[pos].keys  = 0;
-         sd[pos].tails = 0;
+         sd[pos].tails = U_NULLPTR;
          sd[pos].tags  = false;
 
          comma     = false;
@@ -1283,7 +1279,7 @@ case_svector:
 
       ++s;
 
-      o.ival = listToValue(ARRAY_VALUE, 0);
+      o.ival = listToValue(ARRAY_VALUE, U_NULLPTR);
 
       goto next;
 
@@ -1304,7 +1300,7 @@ case_evector:
 case_false:
       if (u_get_unalignedp32(s) == U_MULTICHAR_CONSTANT32('a','l','s','e'))
          {
-         o.ival = getJsonValue(FALSE_VALUE, 0);
+         o.ival = getJsonValue(FALSE_VALUE, U_NULLPTR);
 
          s = start+U_CONSTANT_SIZE("false");
 
@@ -1316,7 +1312,7 @@ case_false:
 case_null:
       if (u_get_unalignedp32(start) == U_MULTICHAR_CONSTANT32('n','u','l','l'))
          {
-         o.ival = getJsonValue(NULL_VALUE, 0);
+         o.ival = getJsonValue(NULL_VALUE, U_NULLPTR);
 
          s = start+U_CONSTANT_SIZE("null");
 
@@ -1328,7 +1324,7 @@ case_null:
 case_true:
       if (u_get_unalignedp32(start) == U_MULTICHAR_CONSTANT32('t','r','u','e'))
          {
-         o.ival = getJsonValue(TRUE_VALUE, 0);
+         o.ival = getJsonValue(TRUE_VALUE, U_NULLPTR);
 
          s = start+U_CONSTANT_SIZE("true");
 
@@ -1347,7 +1343,7 @@ case_sobject:
          U_INTERNAL_ASSERT_MINOR(pos, U_JSON_PARSE_STACK_SIZE)
 
          sd[pos].keys  = 0;
-         sd[pos].tails = 0;
+         sd[pos].tails = U_NULLPTR;
          sd[pos].tags  = true;
 
          comma     = false;
@@ -1358,12 +1354,12 @@ case_sobject:
 
       ++s;
 
-      o.ival = listToValue(OBJECT_VALUE, 0);
+      o.ival = listToValue(OBJECT_VALUE, U_NULLPTR);
 
       goto next;
 
 case_eobject:
-      U_INTERNAL_DUMP("eobject: comma = %b colon = %b separator = %b sd[%d].tags = %b sd[%d].tails = %p separator = %b", comma, colon, separator, pos, sd[pos].tags, pos, sd[pos].tails)
+      U_INTERNAL_DUMP("eobject: comma = %b colon = %b separator = %b sd[%d].tags = %b sd[%d].tails = %p", comma, colon, separator, pos, sd[pos].tags, pos, sd[pos].tails)
 
       if (comma        ||
           pos == -1    ||
@@ -1447,6 +1443,38 @@ cdefault:
       }
 
    U_RETURN(false);
+}
+
+void UValue::nextParser()
+{
+   U_TRACE_NO_PARAM(0, "UValue::nextParser()")
+
+   U_INTERNAL_DUMP("UValue::pos = %d", UValue::pos)
+
+   U_INTERNAL_ASSERT_DIFFERS(UValue::pos, -1)
+
+   U_DUMP("sd[%d].tags = (%d,%S) sd[%d].tails = %p sd[%d].keys = 0x%x", pos, (sd[pos].tags ? OBJECT_VALUE : ARRAY_VALUE),
+                                   getDataTypeDescription((sd[pos].tags ? OBJECT_VALUE : ARRAY_VALUE)), pos, sd[pos].tails, pos, sd[pos].keys)
+
+   if (sd[pos].tags == false) sd[pos].tails = insertAfter(sd[pos].tails, o.ival);
+   else
+      {
+      if (sd[pos].keys == 0)
+         {
+         sd[pos].keys = o.ival;
+
+         U_INTERNAL_DUMP("sd[%d].keys = %V",  pos, getPayload(sd[pos].keys))
+
+         return;
+         }
+
+      sd[pos].tails = insertAfter(sd[pos].tails, o.ival);
+
+      U_INTERNAL_ASSERT(isStringOrUTF(sd[pos].keys))
+
+      sd[pos].tails->pkey.ival = sd[pos].keys;
+                                 sd[pos].keys = 0;
+      }
 }
 
 // =======================================================================================================================
@@ -1665,11 +1693,11 @@ U_NO_EXPORT UString UValue::jread_string(UTokenizer& tok)
    const char* ptr  = tok.getPointer();
    const char* end  = tok.getEnd();
    const char* last = u_find_char(ptr, end, c);
-   uint32_t sz      = (last < end ? last - ptr : 0);
+   uint32_t len     = (last < end ? last - ptr : 0);
 
-   U_INTERNAL_DUMP("c = %C sz = %u", c, sz)
+   U_INTERNAL_DUMP("c = %C len = %u", c, len)
 
-   if (sz) (void) result.assign(ptr, sz);
+   if (len) (void) result.assign(ptr, len);
 
    if (last < end) tok.setPointer(last+1);
 
@@ -1906,7 +1934,7 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
 
                   U_INTERNAL_DUMP("index = %u", index)
 
-                  U_INTERNAL_ASSERT_EQUALS(index, ::strtol(start, 0, 10))
+                  U_INTERNAL_ASSERT_EQUALS(index, ::strtol(start, U_NULLPTR, 10))
                   }
                break;
 
@@ -2060,7 +2088,7 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
 
             U_INTERNAL_DUMP("index = %u", index)
 
-            U_INTERNAL_ASSERT_EQUALS(index, ::strtol(start, 0, 10))
+            U_INTERNAL_ASSERT_EQUALS(index, ::strtol(start, U_NULLPTR, 10))
             }
 
          count = 0;
@@ -2314,7 +2342,7 @@ const char* UValue::dump(bool _reset) const
       }
 #endif
 
-   return 0;
+   return U_NULLPTR;
 }
 
 const char* UJsonTypeHandler_Base::dump(bool _reset) const
@@ -2330,7 +2358,6 @@ const char* UJsonTypeHandler_Base::dump(bool _reset) const
       }
 #endif
 
-   return 0;
+   return U_NULLPTR;
 }
-
 #endif

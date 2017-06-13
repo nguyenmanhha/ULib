@@ -63,7 +63,7 @@ public:
 
    // This routine returns the rowid of the most recent successful INSERT into the database
 
-   unsigned long long last_insert_rowid(const char* sequence = 0);
+   unsigned long long last_insert_rowid(const char* sequence = U_NULLPTR);
 
    // STREAM
 
@@ -125,11 +125,11 @@ private:
    U_DISALLOW_ASSIGN(UOrmTypeHandler_Base)
 };
 
-#define U_ORM_TYPE_HANDLER(class_name, name_object_member, type_object_member) \
-                           UOrmTypeHandler<type_object_member>(((class_name*)pval)->name_object_member)
+#define U_ORM_TYPE_HANDLER(name_object_member, type_object_member) UOrmTypeHandler<type_object_member>(name_object_member)
 
 /**
- * Converts Rows to a Type and the other way around. Provide template specializations to support your own complex types.
+ * Converts Rows to a Type and the other way around.
+ * Provide template specializations to support your own complex types.
  *
  * Take as example the following (simplified) class:
  *
@@ -140,30 +140,25 @@ private:
  *    UString firstName;
  * };
  *
- * The UOrmTypeHandler must provide a custom bindParam and bindResult method:
+ * add this methods to the (simplified) class:
  * 
- * template <> class UOrmTypeHandler<Person> : public UOrmTypeHandler_Base {
- * public:
- *    explicit UOrmTypeHandler(Person& val) : UOrmTypeHandler_Base(&val)
+ * void bindParam(UOrmStatement* stmt)
+ *    {
+ *    // the table is defined as Person (LastName VARCHAR(30), FirstName VARCHAR, Age INTEGER(3))
  *
- *    void bindParam(UOrmStatement* stmt)
- *       {
- *       // the table is defined as Person (LastName VARCHAR(30), FirstName VARCHAR, Age INTEGER(3))
- *
- *       stmt->bindParam(U_ORM_TYPE_HANDLER(Person, age,       int));
- *       stmt->bindParam(U_ORM_TYPE_HANDLER(Person,  lastName, UString));
- *       stmt->bindParam(U_ORM_TYPE_HANDLER(Person, firstName, UString));
- *       }
+ *    stmt->bindParam(U_ORM_TYPE_HANDLER(age,       int));
+ *    stmt->bindParam(U_ORM_TYPE_HANDLER( lastName, UString));
+ *    stmt->bindParam(U_ORM_TYPE_HANDLER(firstName, UString));
+ *    }
  * 
- *    void bindResult(UOrmStatement* stmt)
- *       {
- *       // the table is defined as Person (LastName VARCHAR(30), FirstName VARCHAR, Age INTEGER(3))
+ * void bindResult(UOrmStatement* stmt)
+ *    {
+ *    // the table is defined as Person (LastName VARCHAR(30), FirstName VARCHAR, Age INTEGER(3))
  *
- *       stmt->bindResult(U_ORM_TYPE_HANDLER(Person, age,       int));
- *       stmt->bindResult(U_ORM_TYPE_HANDLER(Person,  lastName, UString));
- *       stmt->bindResult(U_ORM_TYPE_HANDLER(Person, firstName, UString));
- *       }
- * };
+ *    stmt->bindResult(U_ORM_TYPE_HANDLER(age,       int));
+ *    stmt->bindResult(U_ORM_TYPE_HANDLER( lastName, UString));
+ *    stmt->bindResult(U_ORM_TYPE_HANDLER(firstName, UString));
+ *    }
  */
 
 template <class T> class U_EXPORT UOrmTypeHandler : public UOrmTypeHandler_Base {
@@ -173,8 +168,19 @@ public:
 
    // SERVICES
 
-   void bindParam( UOrmStatement* stmt);
-   void bindResult(UOrmStatement* stmt);
+   void bindParam(UOrmStatement* stmt)
+      {
+      U_TRACE(0, "UOrmTypeHandler<T>::bindParam(%p)", stmt)
+
+      ((T*)pval)->bindParam(stmt);
+      }
+
+   void bindResult(UOrmStatement* stmt)
+      {
+      U_TRACE(0, "UOrmTypeHandler<T>::bindResult(%p)", stmt)
+
+      ((T*)pval)->bindResult(stmt);
+      }
 
 private:
    U_DISALLOW_ASSIGN(UOrmTypeHandler)
@@ -217,7 +223,7 @@ public:
 
    // This routine returns the rowid of the most recent successful INSERT into the database
 
-   unsigned long long last_insert_rowid(const char* sequence = 0);
+   unsigned long long last_insert_rowid(const char* sequence = U_NULLPTR);
 
    // Get number of columns in the row
 
@@ -499,7 +505,7 @@ inline void UOrmStatement::into(T1& r1, T2& r2, T3& r3, T4& r4, T5& r5, T6& r6, 
 
 template <> class U_EXPORT UOrmTypeHandler<null> : public UOrmTypeHandler_Base {
 public:
-   explicit UOrmTypeHandler(null& val) : UOrmTypeHandler_Base(0) {}
+   explicit UOrmTypeHandler(null& val) : UOrmTypeHandler_Base(U_NULLPTR) {}
 
    void bindParam(UOrmStatement* stmt)
       {

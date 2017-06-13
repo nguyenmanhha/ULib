@@ -250,7 +250,7 @@ public:
 
    static void setHostname(const UString& name) { setHostname(U_STRING_TO_PARAM(name)); }
 
-   static const char* getStatusDescription(uint32_t* plen = 0);
+   static const char* getStatusDescription(uint32_t* plen = U_NULLPTR);
 
    static uint32_t getUserAgent()
       {
@@ -571,7 +571,7 @@ public:
       addSetCookie(cookie);
       }
 
-   static void setSessionCookie(UString* param = 0);
+   static void setSessionCookie(UString* param = U_NULLPTR);
 
    static bool getDataStorage();
    static bool getDataSession();
@@ -663,7 +663,7 @@ public:
    static bool runCGI(bool set_environment);
    static bool getCGIEnvironment(UString& environment, int type);
    static bool processCGIOutput(bool cgi_sh_script, bool bheaders);
-   static bool processCGIRequest(UCommand* cmd, UHTTP::ucgi* cgi = 0);
+   static bool processCGIRequest(UCommand* cmd, UHTTP::ucgi* cgi = U_NULLPTR);
    static bool setEnvironmentForLanguageProcessing(int type, void* env, vPFpvpcpc func);
 
 #if defined(U_ALIAS) && defined(USE_LIBPCRE) // REWRITE RULE
@@ -745,7 +745,7 @@ public:
       {
       U_TRACE_REGISTER_OBJECT(0, UServletPage, "", 0)
 
-      runDynamicPage = 0;
+      runDynamicPage = U_NULLPTR;
       }
 
    ~UServletPage()
@@ -796,8 +796,8 @@ public:
       U_TRACE_REGISTER_OBJECT(0, UCServletPage, "", 0)
 
       size      = 0;
-      relocated = 0;
-      prog_main = 0;
+      relocated = U_NULLPTR;
+      prog_main = U_NULLPTR;
       }
 
    ~UCServletPage()
@@ -832,8 +832,8 @@ public:
       U_TRACE_REGISTER_OBJECT(0, UPHP, "", 0)
 
       initPHP =
-       runPHP = 0;
-       endPHP = 0;
+       runPHP = U_NULLPTR;
+       endPHP = U_NULLPTR;
       }
 
    ~UPHP()
@@ -867,8 +867,8 @@ public:
       U_TRACE_REGISTER_OBJECT(0, URUBY, "", 0)
 
       initRUBY =
-       runRUBY = 0;
-       endRUBY = 0;
+       runRUBY = U_NULLPTR;
+       endRUBY = U_NULLPTR;
       }
 
    ~URUBY()
@@ -902,8 +902,8 @@ public:
       U_TRACE_REGISTER_OBJECT(0, UPYTHON, "", 0)
 
       initPYTHON =
-       runPYTHON = 0;
-       endPYTHON = 0;
+       runPYTHON = U_NULLPTR;
+       endPYTHON = U_NULLPTR;
       }
 
    ~UPYTHON()
@@ -972,7 +972,7 @@ public:
       {
       U_TRACE_REGISTER_OBJECT(0, UV8JavaScript, "", 0)
 
-      runv8 = 0;
+      runv8 = U_NULLPTR;
       }
 
    ~UV8JavaScript()
@@ -1005,6 +1005,9 @@ public:
 
    void* ptr;               // data
    UVector<UString>* array; // content, header, gzip(content, header)
+#ifndef U_HTTP2_DISABLE
+   UVector<UString>* http2; //          header, gzip(header)
+#endif
    time_t mtime;            // time of last modification
    time_t expire;           // expire time of the entry
    uint32_t size;           // size content
@@ -1051,7 +1054,7 @@ public:
 
       U_INTERNAL_DUMP("file_data->array = %p", file_data->array)
 
-      if (file_data->array != 0) U_RETURN(true);
+      if (file_data->array != U_NULLPTR) U_RETURN(true);
 
       U_RETURN(false);
       }
@@ -1111,11 +1114,41 @@ public:
 
    static UString getDataFromCache(int idx);
 
-   static UString   getBodyFromCache() { return getDataFromCache(0); }
-   static UString getHeaderFromCache() { return getDataFromCache(1); };
+   static UString getBodyFromCache()         { return getDataFromCache(0); }
+   static UString getBodyCompressFromCache() { return getDataFromCache(2); }
 
-   static UString   getBodyCompressFromCache() { return getDataFromCache(2); }
+#ifdef U_HTTP2_DISABLE
+   static UString getHeaderFromCache()         { return getDataFromCache(1); };
    static UString getHeaderCompressFromCache() { return getDataFromCache(3); };
+#else
+   static UString getHeaderFromCache()
+      {
+      U_TRACE_NO_PARAM(0, "UHTTP::getHeaderFromCache()")
+
+      UString result;
+
+      U_INTERNAL_DUMP("U_http_version = %C", U_http_version)
+
+           if (U_http_version != '2') result = getDataFromCache(1);
+      else if (file_data->http2)      result = file_data->http2->operator[](0);
+
+      U_RETURN_STRING(result);
+      }
+
+   static UString getHeaderCompressFromCache()
+      {
+      U_TRACE_NO_PARAM(0, "UHTTP::getHeaderCompressFromCache()")
+
+      UString result;
+
+      U_INTERNAL_DUMP("U_http_version = %C", U_http_version)
+
+           if (U_http_version != '2') result = getDataFromCache(3);
+      else if (file_data->http2)      result = file_data->http2->operator[](1);
+
+      U_RETURN_STRING(result);
+      }
+#endif
 
    static UFileCacheData* getFileInCache(const char* path, uint32_t len)
       {
@@ -1221,7 +1254,7 @@ private:
    static inline void setUpgrade(const char* ptr) U_NO_EXPORT;
    static inline void setIfModSince(const char* ptr) U_NO_EXPORT;
    static inline void setConnection(const char* ptr) U_NO_EXPORT;
-   static inline void setAcceptEncoding(const char* ptr) U_NO_EXPORT;
+   static        void setAcceptEncoding(const char* ptr) U_NO_EXPORT;
    static inline void setContentLength(const char* ptr1, const char* ptr2) U_NO_EXPORT;
 
    static inline void setRange(const char* ptr, uint32_t len) U_NO_EXPORT;
@@ -1253,7 +1286,10 @@ template <> inline void u_destroy(const UHTTP::UFileCacheData* elem)
    if (UHashMap<void*>::istream_loading)
       {
       ((UHTTP::UFileCacheData*)elem)->ptr   =
-      ((UHTTP::UFileCacheData*)elem)->array = 0;
+      ((UHTTP::UFileCacheData*)elem)->array = U_NULLPTR;
+#  ifndef U_HTTP2_DISABLE
+      ((UHTTP::UFileCacheData*)elem)->http2 = U_NULLPTR;
+#  endif
       }
 
    delete elem;
