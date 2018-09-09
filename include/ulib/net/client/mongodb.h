@@ -20,6 +20,13 @@
 typedef int bson_t;
 typedef int mongoc_write_concern_t;
 typedef int mongoc_bulk_operation_t;
+
+extern "C" {
+extern U_EXPORT void bson_destroy(bson_t* bson);
+       U_EXPORT void bson_destroy(bson_t* bson) {}
+extern U_EXPORT bson_t* bson_new();
+       U_EXPORT bson_t* bson_new() { return U_NULLPTR; }
+};
 #else
 #  include <mongoc.h>
 #endif
@@ -42,7 +49,7 @@ public:
 
     UMongoDBClient() : uri(100)
       {
-      U_TRACE_REGISTER_OBJECT(0, UMongoDBClient, "", 0)
+      U_TRACE_CTOR(0, UMongoDBClient, "")
 
 #  ifdef USE_MONGODB
       puri = U_NULLPTR;
@@ -55,7 +62,7 @@ public:
 
    ~UMongoDBClient()
       {
-      U_TRACE_UNREGISTER_OBJECT(0, UMongoDBClient)
+      U_TRACE_DTOR(0, UMongoDBClient)
 
 #  ifdef USE_MONGODB
       if (puri)       U_SYSCALL_VOID(mongoc_uri_destroy, "%p", puri);
@@ -69,6 +76,24 @@ public:
    // SERVICES
 
    UVector<UString> vitem;
+
+   bool findOne(uint32_t value, bson_t* query)
+      {
+      U_TRACE(0, "UMongoDBClient::findOne(%u,%p)", value, query)
+
+#  ifdef USE_MONGODB
+      U_INTERNAL_ASSERT_POINTER(client)
+      U_INTERNAL_ASSERT_POINTER(collection)
+
+      U_SYSCALL_VOID(bson_init, "%p", query);
+
+      BSON_APPEND_INT32(query, "_id", value);
+
+      if (find(query)) U_RETURN(true);
+#  endif
+
+      U_RETURN(false);
+      }
 
    bool findOne(uint32_t value)
       {
@@ -84,7 +109,7 @@ public:
 
       BSON_APPEND_INT32(query, "_id", value);
 
-      bool result = find(query, U_NULLPTR);
+      bool result = find(query);
 
       U_SYSCALL_VOID(bson_destroy, "%p", query);
 
@@ -104,7 +129,7 @@ public:
 
       bson_t* query = (bson_t*) U_SYSCALL_NO_PARAM(bson_new);  
 
-      bool result = find(query, U_NULLPTR);
+      bool result = find(query);
 
       U_SYSCALL_VOID(bson_destroy, "%p", query);
 
@@ -158,7 +183,11 @@ public:
       U_INTERNAL_ASSERT_POINTER(client)
       U_INTERNAL_ASSERT_POINTER(collection)
 
+#  if MONGOC_CHECK_VERSION(1, 9, 0)
+      mongoc_bulk_operation_t* bulk = (mongoc_bulk_operation_t*) U_SYSCALL(mongoc_collection_create_bulk_operation_with_opts, "%p,%p", collection, U_NULLPTR);  
+#  else
       mongoc_bulk_operation_t* bulk = (mongoc_bulk_operation_t*) U_SYSCALL(mongoc_collection_create_bulk_operation, "%p,%b,%p", collection, ordered, write_concern);  
+#  endif
 
       U_RETURN_POINTER(bulk, mongoc_bulk_operation_t);
 #  endif

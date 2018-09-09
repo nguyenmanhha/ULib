@@ -302,12 +302,6 @@ void UMemoryPool::allocateMemoryBlocks(const char* ptr)
 #if defined(U_LINUX) && defined(MAP_HUGE_2MB)
    if (UFile::rlimit_memfree == U_2M)
       {
-#  ifdef DEBUG
-      char buffer[256];
-
-      if (u_err_buffer == U_NULLPTR) u_err_buffer = buffer;
-#  endif
-
       // cat /proc/meminfo | grep Huge
 
       UFile::nr_hugepages = UFile::setSysParam("/proc/sys/vm/nr_hugepages", 64);
@@ -386,8 +380,8 @@ void* UMemoryPool::pop(int stack_index)
    if (pstack->index &&
        pstack->len == 0)
       {
-      U_WARNING("We are going to call allocateMemoryBlocks() (pid %P) - object = %S func = %S"
-                " index = %u type = %u len = %u space = %u depth = %u max_depth = %u num_call_allocateMemoryBlocks = %u pop_cnt = %u push_cnt = %u",
+      U_WARNING("We are going to call allocateMemoryBlocks() - object = %S func = %S"
+                " INDEX = %u type = %u len = %u space = %u depth = %u MAX_DEPTH = %u num_call_allocateMemoryBlocks = %u pop_cnt = %u push_cnt = %u",
                   obj_class, func_call, pstack->index, pstack->type, pstack->len, pstack->space, pstack->depth,
                   pstack->max_depth, pstack->num_call_allocateMemoryBlocks, pstack->pop_cnt, pstack->push_cnt);
       }
@@ -450,6 +444,8 @@ void* UMemoryPool::_malloc(uint32_t num, uint32_t type_size, bool bzero)
    U_INTERNAL_ASSERT_RANGE(4, length, 1U * 1024U * 1024U * 1024U) // NB: over 1G is very suspect on 32bit...
 # endif
    ptr = U_SYSCALL(malloc, "%u", length);
+
+   U_INTERNAL_ASSERT_POINTER_MSG(ptr, "cannot allocate memory, exiting...")
 #else
    if (length <= U_MAX_SIZE_PREALLOCATE)
       {
@@ -490,6 +486,8 @@ void* UMemoryPool::_malloc(uint32_t* pnum, uint32_t type_size, bool bzero)
    if (length == 0) length = type_size;
 
    ptr = U_SYSCALL(malloc, "%u", length);
+
+   U_INTERNAL_ASSERT_POINTER_MSG(ptr, "cannot allocate memory, exiting...")
 #else
    if (length > U_MAX_SIZE_PREALLOCATE) ptr = UFile::mmap(&length, -1, PROT_READ | PROT_WRITE, MAP_PRIVATE | U_MAP_ANON, 0);
    else
@@ -510,10 +508,12 @@ void* UMemoryPool::_malloc(uint32_t* pnum, uint32_t type_size, bool bzero)
    U_RETURN(ptr);
 }
 
-#if defined(ENABLE_MEMPOOL) && !defined(U_SERVER_CAPTIVE_PORTAL)
+#if defined(ENABLE_MEMPOOL) && (!defined(U_SERVER_CAPTIVE_PORTAL) || defined(ENABLE_THREAD))
 void UMemoryPool::deallocate(void* ptr, uint32_t length)
 {
    U_TRACE(1, "UMemoryPool::deallocate(%p,%u)", ptr, length)
+
+   U_INTERNAL_ASSERT_MINOR(length, U_TO_FREE)
 
    if (UFile::isLastAllocation(ptr, length))
       {
@@ -566,7 +566,7 @@ void UStackMemoryPool::paint(ostream& os) // paint info
 
       if (pstack->space > max_space) max_space = pstack->space;
 
-      (void) snprintf(buffer, sizeof(buffer),
+      (void) snprintf(buffer, U_CONSTANT_SIZE(buffer),
                       "stack[%u]: type = %4u len = %5u space = %5u allocateMemoryBlocks = %2u depth = %5u max_depth = %5u pop_cnt = %9u push_cnt = %9u\n",
                       stack_index,
                       pstack->type, pstack->len, pstack->space, pstack->num_call_allocateMemoryBlocks,
@@ -576,7 +576,7 @@ void UStackMemoryPool::paint(ostream& os) // paint info
       }
 
    /*
-   (void) snprintf(buffer, sizeof(buffer),
+   (void) snprintf(buffer, U_CONSTANT_SIZE(buffer),
 #     ifdef HAVE_ARCH64
           U_CONSTANT_TO_PARAM("\n        8   24   32   56  128  256  512  1024 2048 4096\n"
 #     else
@@ -598,7 +598,7 @@ void UStackMemoryPool::paint(ostream& os) // paint info
 
    for (int32_t i = max_space-1; i >= 0; --i)
       {
-      (void) snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%5u %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c\n"), i+1,
+      (void) snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("%5u %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c\n"), i+1,
           (mem_stack[0].space >  (uint32_t)i ?  '|' :  ' '),
           (mem_stack[0].space == (uint32_t)i ? "--" : (mem_stack[0].len > (uint32_t)i ? "xx" : "  ")),
           (mem_stack[0].space >  (uint32_t)i ?  '|' :  ' '),
@@ -633,7 +633,7 @@ void UStackMemoryPool::paint(ostream& os) // paint info
       os << buffer;
       }
 
-   (void) snprintf(buffer, sizeof(buffer),
+   (void) snprintf(buffer, U_CONSTANT_SIZE(buffer),
           U_CONSTANT_TO_PARAM("       --   --   --   --   --   --   --   --   --   --\n"
 #     ifdef HAVE_ARCH64
           "        8   24   32   56  128  256  512  1024 2048 4096"

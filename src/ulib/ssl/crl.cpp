@@ -235,9 +235,7 @@ time_t UCrl::getIssueTime(X509_CRL* _crl)
 
    const ASN1_UTCTIME* utctime = X509_CRL_get_lastUpdate(_crl);
 
-   time_t result = UTimeDate::getSecondFromTime((const char*)utctime->data, true, "%2u%2u%2u%2u%2u%2uZ"); // 100212124550Z
-
-   U_RETURN(result);
+   return UTimeDate::getSecondFromDate((const char*)utctime->data); // 100212124550Z
 }
 
 // STREAMS
@@ -252,9 +250,9 @@ UString UCrl::print() const
 
    (void) U_SYSCALL(X509_CRL_print, "%p,%p", bio, crl);
 
-   UString text = UStringExt::BIOtoString(bio);
+   UString txt = UStringExt::BIOtoString(bio);
 
-   U_RETURN_STRING(text);
+   U_RETURN_STRING(txt);
 }
 
 #ifdef U_STDCPP_ENABLE
@@ -265,9 +263,9 @@ U_EXPORT ostream& operator<<(ostream& os, const UCrl& c)
    os.put('{');
    os.put(' ');
 
-   UString text = c.print();
+   UString txt = c.print();
 
-   (void) os.write(text.data(), text.size());
+   (void) os.write(txt.data(), txt.size());
 
    os.put(' ');
    os.put('}');

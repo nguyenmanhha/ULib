@@ -543,7 +543,7 @@ loop:
 
    if (u__isspace(c)) goto loop;
 
-   U_INTERNAL_DUMP("dispatch_table[%d] = %p &&cvalue = %p", c-'!', dispatch_table[c-'!'], &&cvalue)
+   U_INTERNAL_DUMP("dispatch_table[%d] = %d &&cvalue = %p", c-'!', dispatch_table[c-'!'], &&cvalue)
 
    goto *((char*)&&cvalue + dispatch_table[c-'!']);
 
@@ -702,12 +702,12 @@ const char* UTokenizer::dump(bool reset) const
 
    char buffer[32];
 
-   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%S"), group));
+   UObjectIO::os->write(buffer, u__snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("%S"), group));
 
    *UObjectIO::os << '\n'
                   << "delim                       ";
 
-   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%S"), delim));
+   UObjectIO::os->write(buffer, u__snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("%S"), delim));
 
    *UObjectIO::os << '\n'
                   << "group_skip                  " << group_skip  << '\n'

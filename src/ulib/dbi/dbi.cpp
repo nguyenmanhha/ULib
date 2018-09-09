@@ -16,7 +16,7 @@
 
 UDBI::UDBI(const char* driverdir, const char* drivername)
 {
-   U_TRACE_REGISTER_OBJECT(0, UDBI, "%S,%S", driverdir, drivername)
+   U_TRACE_CTOR(0, UDBI, "%S,%S", driverdir, drivername)
 
    query_in     = U_NULLPTR;
    query_in_len = 0;
@@ -49,7 +49,7 @@ UDBI::UDBI(const char* driverdir, const char* drivername)
 
 UDBI::~UDBI()
 {
-   U_TRACE_UNREGISTER_OBJECT(0, UDBI)
+   U_TRACE_DTOR(0, UDBI)
 
    close();
 
@@ -86,9 +86,9 @@ bool UDBI::setDirectory(const char* directory)
 
    U_INTERNAL_ASSERT_POINTER(backend)
 
-   char buffer[U_PATH_MAX];
+   char buffer[U_PATH_MAX+1];
 
-   (void) u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%s_dbdir"), backend);
+   (void) u__snprintf(buffer, U_PATH_MAX, U_CONSTANT_TO_PARAM("%s_dbdir"), backend);
 
    if (U_SYSCALL(dbi_conn_set_option, "%p,%S,%S", conn, buffer, directory) == 0) U_RETURN(true);
 
@@ -286,9 +286,10 @@ void UDBI::bind(const UString& v, bool is_null)
    else if (v.empty()) (void) escaped_query.append(U_CONSTANT_TO_PARAM("''"));
    else
       {
-      char* new_str;
+      U_INTERNAL_ASSERT(v.isNullTerminated())
 
-      const char* ptr = v.c_str();
+      char* new_str;
+      const char* ptr = v.data();
 
       size_t sz = U_SYSCALL(dbi_conn_quote_string_copy, "%p,%S,%p", conn, ptr, &new_str);
 
@@ -322,7 +323,7 @@ void UDBI::bind(struct tm& v, bool is_null)
 
       u_strftime_tm = v;
 
-      (void) escaped_query.append(buffer, u_strftime1(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("'%Y-%m-%d %T'")));
+      (void) escaped_query.append(buffer, u_strftime1(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("'%Y-%m-%d %T'")));
       }
 
    ready_for_input = false;
@@ -493,7 +494,7 @@ bool UDBIRow::fetch(int pos, struct tm& value)
          {
          char const* d = U_SYSCALL(dbi_result_get_string_idx, "%p,%d", res, pos);
 
-         (void) UTimeDate::getSecondFromTime(d, false, "%d-%d-%d %d:%d:%d", &value);
+         (void) UTimeDate::getSecondFromDate(d, false, &value, "%d-%d-%d %d:%d:%d");
          }
       break;
 

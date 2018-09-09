@@ -126,6 +126,9 @@
 /* define if the compiler supports basic C++14 syntax */
 #undef HAVE_CXX14
 
+/* define if the compiler supports basic C++17 syntax */
+#undef HAVE_CXX17
+
 /* has daemon */
 #undef HAVE_DAEMON
 
@@ -326,6 +329,9 @@
 /* define if the compiler implements old style iostreams */
 #undef HAVE_OLD_IOSTREAM
 
+/* Define to 1 if PostgreSQL pg_config.h is available */
+#undef HAVE_PG_CONFIG_H
+
 /* has pipe2 */
 #undef HAVE_PIPE2
 
@@ -337,6 +343,9 @@
 
 /* has posix_spawn */
 #undef HAVE_POSIX_SPAWN
+
+/* A required version of PostgreSQL is not found */
+#undef HAVE_POSTGRESQL
 
 /* has pread */
 #undef HAVE_PREAD
@@ -586,6 +595,9 @@
 /* Standard C lib version */
 #undef LIBC_VERSION
 
+/* Define to 1 if PostgreSQL libpgport is not available */
+#undef LIBPGPORT_NOT_FOUND
+
 /* Libraries */
 #undef LIBS_VAR
 
@@ -687,11 +699,23 @@
 /* ULib version */
 #undef ULIB_VERSION
 
+/* Define if use userver_ipc */
+#undef USERVER_IPC
+
+/* Define if use userver_udp */
+#undef USERVER_UDP
+
 /* Define if enable c-ares support */
 #undef USE_C_ARES
 
+/* Define if enable f-stack support */
+#undef USE_FSTACK
+
 /* Define if we have support for crc32 intrinsics */
 #undef USE_HARDWARE_CRC32
+
+/* Define if enable libbrotli support */
+#undef USE_LIBBROTLI
 
 /* Define if enable libcurl support */
 #undef USE_LIBCURL
@@ -808,6 +832,9 @@
 /* enable client response partial write support */
 #undef U_CLIENT_RESPONSE_PARTIAL_WRITE_SUPPORT
 
+/* enable server evasive action support */
+#undef U_EVASIVE_SUPPORT
+
 /* enable GDB stack dump support */
 #undef U_GDB_STACK_DUMP_ENABLE
 
@@ -847,6 +874,9 @@
 /* enable server thread approach support */
 #undef U_SERVER_THREAD_APPROACH_SUPPORT
 
+/* enable Server-Sent Events support */
+#undef U_SSE_ENABLE
+
 /* STATIC_HANDLER_ECHO */
 #undef U_STATIC_HANDLER_ECHO
 
@@ -861,6 +891,9 @@
 
 /* STATIC_HANDLER_NOCAT */
 #undef U_STATIC_HANDLER_NOCAT
+
+/* STATIC_HANDLER_NODOG */
+#undef U_STATIC_HANDLER_NODOG
 
 /* STATIC_HANDLER_PROXY */
 #undef U_STATIC_HANDLER_PROXY
@@ -949,6 +982,9 @@
 
 /* Ldap version */
 #undef _LDAP_VERSION
+
+/* libbrotli - google compression library version */
+#undef _LIBBROTLI_VERSION
 
 /* libevent - event notification library version */
 #undef _LIBEVENT_VERSION

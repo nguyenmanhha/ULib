@@ -29,6 +29,10 @@ UEventTime* UNotifier::time_obj;
 struct pollfd UNotifier::fds[1];
 #endif
 
+#ifdef USE_FSTACK
+#  include <ff_epoll.h>
+#endif
+
 /**
  * typedef union epoll_data {
  *    void* ptr;
@@ -52,16 +56,18 @@ struct pollfd UNotifier::fds[1];
  * };
  */
 
-int                             UNotifier::nfd_ready; // the number of file descriptors ready for the requested I/O
-long                            UNotifier::last_event;
-uint32_t                        UNotifier::min_connection;
-uint32_t                        UNotifier::num_connection;
-uint32_t                        UNotifier::max_connection;
-uint32_t                        UNotifier::lo_map_fd_len;
-uint32_t                        UNotifier::bepollet_threshold = 10;
-UEventFd*                       UNotifier::handler_event;
-UEventFd**                      UNotifier::lo_map_fd;
-UGenericHashMap<int,UEventFd*>* UNotifier::hi_map_fd; // maps a fd to a node pointer
+int        UNotifier::nfd_ready; // the number of file descriptors ready for the requested I/O
+bool       UNotifier::flag_sigterm;
+long       UNotifier::last_event;
+uint32_t   UNotifier::min_connection;
+uint32_t   UNotifier::num_connection;
+uint32_t   UNotifier::max_connection;
+uint32_t   UNotifier::lo_map_fd_len;
+uint32_t   UNotifier::bepollet_threshold = 10;
+UEventFd*  UNotifier::handler_event;
+UEventFd** UNotifier::lo_map_fd;
+
+UGenericHashMap<unsigned int,UEventFd*>* UNotifier::hi_map_fd; // maps a fd to a node pointer
 
 #ifdef DEBUG
 uint32_t UNotifier::nwatches;
@@ -130,7 +136,6 @@ fd_set         UNotifier::fd_set_read;
 fd_set         UNotifier::fd_set_write;
 # endif
 bool           UNotifier::bread;
-bool           UNotifier::flag_sigterm;
 
 U_NO_EXPORT void UNotifier::notifyHandlerEvent()
 {
@@ -153,16 +158,20 @@ void UNotifier::init()
    U_TRACE(0, "UNotifier::init()")
 
 #ifdef HAVE_EPOLL_WAIT
+   U_INTERNAL_ASSERT_DIFFERS(U_ClientImage_parallelization, U_PARALLELIZATION_CHILD)
+
    int old = epollfd;
 
    U_INTERNAL_DUMP("old = %d", old)
 
-# ifdef HAVE_EPOLL_CREATE1
+# if defined(HAVE_EPOLL_CREATE1) && !defined(USE_FSTACK)
    epollfd = U_SYSCALL(epoll_create1, "%d", EPOLL_CLOEXEC);
    if (epollfd != -1 || errno != ENOSYS) goto next;
 # endif
-   epollfd = U_SYSCALL(epoll_create, "%u", max_connection);
+   epollfd = U_FF_SYSCALL(epoll_create, "%u", max_connection);
+# if defined(HAVE_EPOLL_CREATE1) && !defined(USE_FSTACK)
 next:
+# endif
    U_INTERNAL_ASSERT_DIFFERS(epollfd, -1)
 
    if (old)
@@ -182,11 +191,11 @@ next:
                {
                U_INTERNAL_DUMP("fd = %d op_mask = %d %B", fd, handler_event->op_mask, handler_event->op_mask)
 
-               (void) U_SYSCALL(epoll_ctl, "%d,%d,%d,%p", old, EPOLL_CTL_DEL, fd, (struct epoll_event*)1);
+               (void) U_FF_SYSCALL(epoll_ctl, "%d,%d,%d,%p", old, EPOLL_CTL_DEL, fd, (struct epoll_event*)1);
 
                struct epoll_event _events = { handler_event->op_mask | EPOLLEXCLUSIVE | EPOLLROUNDROBIN, { handler_event } };
 
-               (void) U_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_ADD, fd, &_events);
+               (void) U_FF_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_ADD, fd, &_events);
                }
             }
 
@@ -197,17 +206,17 @@ next:
 
                U_INTERNAL_DUMP("op_mask = %d %B", handler_event->op_mask, handler_event->op_mask)
 
-               (void) U_SYSCALL(epoll_ctl, "%d,%d,%d,%p", old, EPOLL_CTL_DEL, handler_event->fd, (struct epoll_event*)1);
+               (void) U_FF_SYSCALL(epoll_ctl, "%d,%d,%d,%p", old, EPOLL_CTL_DEL, handler_event->fd, (struct epoll_event*)1);
 
                struct epoll_event _events = { handler_event->op_mask | EPOLLEXCLUSIVE | EPOLLROUNDROBIN, { handler_event } };
 
-               (void) U_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_ADD, handler_event->fd, &_events);
+               (void) U_FF_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_ADD, handler_event->fd, &_events);
                }
             while (hi_map_fd->next());
             }
          }
 
-      (void) U_SYSCALL(close, "%d", old);
+      (void) U_FF_SYSCALL(close, "%d", old);
 
       return;
       }
@@ -262,7 +271,7 @@ next:
             }
          }
 
-      (void) U_SYSCALL(close, "%d", old);
+      (void) U_FF_SYSCALL(close, "%d", old);
 
       return;
       }
@@ -307,24 +316,22 @@ next:
       }
 }
 
-void UNotifier::resume(UEventFd* item)
+void UNotifier::resume(UEventFd* item, uint32_t flags)
 {
-   U_TRACE(0, "UNotifier::resume(%p)", item)
+   U_TRACE(0, "UNotifier::resume(%p,%u)", item, flags)
 
    U_INTERNAL_ASSERT_POINTER(item)
-   U_INTERNAL_ASSERT_EQUALS(item->op_mask, EPOLLOUT)
 
 #ifdef HAVE_EPOLL_WAIT
-   struct epoll_event _events = { EPOLLOUT, { item } };
+   struct epoll_event _events = { flags, { item } };
 
-   (void) U_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_ADD, item->fd, &_events);
+   (void) U_FF_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_ADD, item->fd, &_events);
 #elif defined(HAVE_KQUEUE)
    U_INTERNAL_ASSERT_MAJOR(kq, 0)
    U_INTERNAL_ASSERT_MINOR(nkqevents, max_connection)
 
    EV_SET(kqevents+nkqevents++, item->fd, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0, (void*)item);
 #else
-   U_INTERNAL_ASSERT_DIFFERS(item->op_mask & EPOLLOUT, 0)
    U_INTERNAL_ASSERT_EQUALS(FD_ISSET(item->fd, &fd_set_write), 0)
 
    FD_SET(item->fd, &fd_set_write);
@@ -344,17 +351,15 @@ void UNotifier::suspend(UEventFd* item)
    U_TRACE(0, "UNotifier::suspend(%p)", item)
 
    U_INTERNAL_ASSERT_POINTER(item)
-   U_INTERNAL_ASSERT_EQUALS(item->op_mask, EPOLLOUT)
 
 #ifdef HAVE_EPOLL_WAIT
-   (void) U_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_DEL, item->fd, (struct epoll_event*)1);
+   (void) U_FF_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_DEL, item->fd, (struct epoll_event*)1);
 #elif defined(HAVE_KQUEUE)
    U_INTERNAL_ASSERT_MAJOR(kq, 0)
    U_INTERNAL_ASSERT_MINOR(nkqevents, max_connection)
 
    EV_SET(kqevents+nkqevents++, item->fd, EVFILT_WRITE, EV_DELETE | EV_DISABLE, 0, 0, (void*)item);
 #else
-   U_INTERNAL_ASSERT_DIFFERS(item->op_mask & EPOLLOUT, 0)
    U_INTERNAL_ASSERT(FD_ISSET(item->fd, &fd_set_write))
 
    FD_CLR(item->fd, &fd_set_write);
@@ -373,10 +378,14 @@ int UNotifier::waitForEvent(int fd_max, fd_set* read_set, fd_set* write_set, UEv
 {
    U_TRACE(1, "UNotifier::waitForEvent(%d,%p,%p,%p)", fd_max, read_set, write_set, ptimeout)
 
+   U_INTERNAL_ASSERT_DIFFERS(U_ClientImage_parallelization, U_PARALLELIZATION_CHILD)
+
    int result;
 
 #ifdef HAVE_EPOLL_WAIT
-   result = U_SYSCALL(epoll_wait, "%d,%p,%u,%d", epollfd, events, max_connection, UEventTime::getMilliSecond(ptimeout));
+   U_INTERNAL_ASSERT_DIFFERS(U_ClientImage_parallelization, U_PARALLELIZATION_CHILD)
+
+   result = U_FF_SYSCALL(epoll_wait, "%d,%p,%u,%d", epollfd, events, max_connection, UEventTime::getMilliSecond(ptimeout));
 #elif defined(HAVE_KQUEUE)
    result = U_SYSCALL(kevent, "%d,%p,%d,%p,%d,%p", kq, kqevents, nkqevents, kqrevents, max_connection, UEventTime::getTimeSpec(ptimeout));
    nkqevents = 0;
@@ -393,7 +402,7 @@ int UNotifier::waitForEvent(int fd_max, fd_set* read_set, fd_set* write_set, UEv
    if (write_set) U_INTERNAL_DUMP("write_set = %B", __FDS_BITS(write_set)[0])
 # endif
 
-   result = U_SYSCALL(select, "%d,%p,%p,%p,%p", fd_max, read_set, write_set, 0, UEventTime::getTimeVal(ptimeout));
+   result = U_FF_SYSCALL(select, "%d,%p,%p,%p,%p", fd_max, read_set, write_set, 0, UEventTime::getTimeVal(ptimeout));
 
 # if defined(DEBUG) && !defined(_MSWINDOWS_)
    if ( read_set) U_INTERNAL_DUMP(" read_set = %B", __FDS_BITS( read_set)[0])
@@ -434,8 +443,9 @@ loop:
 # endif
    nkqevents = 0;
 #else
+   U_INTERNAL_ASSERT_DIFFERS(U_ClientImage_parallelization, U_PARALLELIZATION_CHILD)
 loop:
-   nfd_ready = U_SYSCALL(epoll_wait, "%d,%p,%u,%d", epollfd, events, max_connection, UEventTime::getMilliSecond(ptimeout));
+   nfd_ready = U_FF_SYSCALL(epoll_wait, "%d,%p,%u,%d", epollfd, events, max_connection, UEventTime::getMilliSecond(ptimeout));
 #endif
 
    if (nfd_ready > 0)
@@ -488,7 +498,9 @@ loop0:
 
       U_INTERNAL_DUMP("i = %d handler_event->fd = %d", i, handler_event->fd)
 
-      if (handler_event->fd != -1)
+      U_INTERNAL_ASSERT_DIFFERS((handler_event->fd, -1)
+
+   // if (handler_event->fd != -1)
          {
          U_INTERNAL_DUMP("bread = %b bwrite = %b", ((pkqrevents->flags & EVFILT_READ)  != 0), ((pkqrevents->flags & EVFILT_WRITE) != 0))
 
@@ -508,6 +520,7 @@ loop0:
          }
 #  else
       int i = 0;
+      bool bdelete;
       pevents = events;
 #    ifdef U_EPOLLET_POSTPONE_STRATEGY
       bool bloop1 = false;
@@ -522,6 +535,8 @@ loop0:
       handler_event = (UEventFd*)pevents->data.ptr;
 
       U_INTERNAL_DUMP("i = %d handler_event->fd = %d", i, handler_event->fd)
+
+   // U_INTERNAL_ASSERT_DIFFERS(handler_event->fd, -1)
 
       if (handler_event->fd != -1)
          {
@@ -545,9 +560,13 @@ loop0:
           *  EPOLLIN  EPOLLRDHUP
           */
 
-         if (UNLIKELY((pevents->events & (EPOLLERR | EPOLLHUP))   != 0) ||
-              (LIKELY((pevents->events & (EPOLLIN  | EPOLLRDHUP)) != 0) ? handler_event->handlerRead()
-                                                                        : handler_event->handlerWrite()) == U_NOTIFIER_DELETE)
+         bdelete = UNLIKELY((pevents->events & (EPOLLERR | EPOLLHUP))   != 0) ||
+                     LIKELY((pevents->events & (EPOLLIN  | EPOLLRDHUP)) != 0 ? handler_event->handlerRead()
+                                                                             : handler_event->handlerWrite() == U_NOTIFIER_DELETE);
+
+         U_INTERNAL_DUMP("bdelete = %b", bdelete)
+
+         if (bdelete)
             {
             handlerDelete(handler_event);
 
@@ -555,7 +574,7 @@ loop0:
             if (bepollet) pevents->events = 0;
 #        endif
             }
-#       if defined(U_EPOLLET_POSTPONE_STRATEGY)
+#        if defined(U_EPOLLET_POSTPONE_STRATEGY)
          else if (bepollet)
             {
             if (U_ClientImage_state != U_PLUGIN_HANDLER_AGAIN &&
@@ -568,7 +587,7 @@ loop0:
                pevents->events = 0;
                }
             }
-#       endif
+#        endif
          }
 
       if (++i < nfd_ready)
@@ -598,20 +617,23 @@ loop2:         if (pevents->events)
                   {
                   handler_event = (UEventFd*)pevents->data.ptr;
 
-                  U_INTERNAL_DUMP("i = %d handler_event->fd = %d ", i, handler_event->fd)
+                  U_INTERNAL_DUMP("i = %d handler_event->fd = %d", i, handler_event->fd)
 
-                  U_INTERNAL_ASSERT_DIFFERS(handler_event->fd, -1)
+               // U_INTERNAL_ASSERT_DIFFERS(handler_event->fd, -1)
 
-                  if (handler_event->handlerRead() == U_NOTIFIER_DELETE)
+                  if (handler_event->fd != -1)
                      {
-                     handlerDelete(handler_event);
+                     if (handler_event->handlerRead() == U_NOTIFIER_DELETE)
+                        {
+                        handlerDelete(handler_event);
 
-                     pevents->events = 0;
-                     }
-                  else
-                     {
-                     if (U_ClientImage_state != U_PLUGIN_HANDLER_AGAIN) bloop1 = true;
-                     else                                               pevents->events = 0;
+                        pevents->events = 0;
+                        }
+                     else
+                        {
+                        if (U_ClientImage_state != U_PLUGIN_HANDLER_AGAIN) bloop1 = true;
+                        else                                               pevents->events = 0;
+                        }
                      }
                   }
 
@@ -694,7 +716,9 @@ void UNotifier::createMapFd()
    lo_map_fd_len = 20+max_connection;
    lo_map_fd     = (UEventFd**) UMemoryPool::_malloc(&lo_map_fd_len, sizeof(UEventFd*), true);
 
-   typedef UGenericHashMap<int,UEventFd*> umapfd;
+   U_INTERNAL_DUMP("lo_map_fd_len = %u", lo_map_fd_len)
+
+   typedef UGenericHashMap<unsigned int,UEventFd*> umapfd;
 
    U_NEW(umapfd, hi_map_fd, umapfd);
 
@@ -709,7 +733,7 @@ bool UNotifier::isHandler(int fd)
 
    bool result = false;
 
-   U_INTERNAL_DUMP("num_connection = %d min_connection = %d", num_connection, min_connection)
+   U_INTERNAL_DUMP("num_connection = %u min_connection = %u", num_connection, min_connection)
 
    if (num_connection > min_connection)
       {
@@ -721,7 +745,7 @@ bool UNotifier::isHandler(int fd)
          {
          lock();
 
-         result = hi_map_fd->find(fd);
+         result = hi_map_fd->find((unsigned int)fd);
 
          unlock();
          }
@@ -737,6 +761,8 @@ bool UNotifier::setHandler(int fd)
    U_INTERNAL_ASSERT_DIFFERS(fd, -1)
    U_INTERNAL_ASSERT_POINTER(lo_map_fd)
    U_INTERNAL_ASSERT_POINTER(hi_map_fd)
+
+   U_INTERNAL_DUMP("lo_map_fd_len = %u", lo_map_fd_len)
 
    if (fd < (int32_t)lo_map_fd_len)
       {
@@ -754,7 +780,7 @@ bool UNotifier::setHandler(int fd)
 
    lock();
 
-   result = hi_map_fd->find(fd);
+   result = hi_map_fd->find((unsigned int)fd);
 
    unlock();
 
@@ -772,7 +798,7 @@ bool UNotifier::setHandler(int fd)
 
 void UNotifier::insert(UEventFd* item, int op)
 {
-   U_TRACE(0, "UNotifier::insert(%p%d)", item, op)
+   U_TRACE(0, "UNotifier::insert(%p,%d)", item, op)
 
    U_INTERNAL_ASSERT_POINTER(item)
 
@@ -782,12 +808,14 @@ void UNotifier::insert(UEventFd* item, int op)
 
    U_INTERNAL_ASSERT_DIFFERS(fd, -1)
 
+   U_INTERNAL_DUMP("lo_map_fd_len = %u", lo_map_fd_len)
+
    if (fd < (int32_t)lo_map_fd_len) lo_map_fd[fd] = item;
    else
       {
       lock();
 
-      hi_map_fd->insert(fd, item);
+      hi_map_fd->insert((unsigned int)fd, item);
 
       unlock();
       }
@@ -804,6 +832,7 @@ void UNotifier::insert(UEventFd* item, int op)
    (void) UDispatcher::add(*(item->pevent));
 #elif defined(HAVE_EPOLL_WAIT)
    U_INTERNAL_ASSERT_MAJOR(epollfd, 0)
+   U_INTERNAL_ASSERT_DIFFERS(U_ClientImage_parallelization, U_PARALLELIZATION_CHILD)
 
 # ifdef DEBUG
    if (op)
@@ -814,7 +843,7 @@ void UNotifier::insert(UEventFd* item, int op)
 
    struct epoll_event _events = { item->op_mask | op, { item } };
 
-   (void) U_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_ADD, fd, &_events);
+   (void) U_FF_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_ADD, fd, &_events);
 #elif defined(HAVE_KQUEUE)
    U_INTERNAL_ASSERT_MAJOR(kq, 0)
    U_INTERNAL_ASSERT_MINOR(nkqevents, max_connection)
@@ -858,11 +887,12 @@ void UNotifier::insert(UEventFd* item, int op)
 #endif
 }
 
-void UNotifier::modify(UEventFd* item)
+bool UNotifier::modify(UEventFd* item)
 {
    U_TRACE(0, "UNotifier::modify(%p)", item)
 
    U_INTERNAL_ASSERT_POINTER(item)
+   U_INTERNAL_ASSERT_DIFFERS(U_ClientImage_parallelization, U_PARALLELIZATION_CHILD)
 
    int fd = item->fd;
 
@@ -876,17 +906,19 @@ void UNotifier::modify(UEventFd* item)
    U_INTERNAL_DUMP("mask = %B", mask)
 
    UDispatcher::del(item->pevent);
-             delete item->pevent;
+
+   U_DELETE(item->pevent)
 
    U_NEW(UEvent<UEventFd>, item->pevent, UEvent<UEventFd>(fd, mask, *item));
 
    (void) UDispatcher::add(*(item->pevent));
 #elif defined(HAVE_EPOLL_WAIT)
    U_INTERNAL_ASSERT_MAJOR(epollfd, 0)
+   U_INTERNAL_ASSERT_DIFFERS(U_ClientImage_parallelization, U_PARALLELIZATION_CHILD)
 
    struct epoll_event _events = { item->op_mask, { item } };
 
-   (void) U_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_MOD, fd, &_events);
+   if (U_FF_SYSCALL(epoll_ctl, "%d,%d,%d,%p", epollfd, EPOLL_CTL_MOD, fd, &_events)) U_RETURN(false);
 #elif defined(HAVE_KQUEUE)
    U_INTERNAL_ASSERT_MAJOR(kq, 0)
    U_INTERNAL_ASSERT_MINOR(nkqevents, max_connection)
@@ -950,15 +982,18 @@ void UNotifier::modify(UEventFd* item)
    U_INTERNAL_ASSERT(fd_read_cnt  >= 0)
    U_INTERNAL_ASSERT(fd_write_cnt >= 0)
 #endif
+
+   U_RETURN(true);
 }
 
-void UNotifier::handlerDelete(int fd, int mask)
+void UNotifier::handlerDelete(unsigned int fd, int mask)
 {
-   U_TRACE(0, "UNotifier::handlerDelete(%d,%B)", fd, mask)
+   U_TRACE(0, "UNotifier::handlerDelete(%u,%B)", fd, mask)
 
    U_INTERNAL_ASSERT_MAJOR(fd, 0)
+   U_INTERNAL_ASSERT_DIFFERS(U_ClientImage_parallelization, U_PARALLELIZATION_CHILD)
 
-   if (fd < (int32_t)lo_map_fd_len) lo_map_fd[fd] = U_NULLPTR;
+   if (fd < lo_map_fd_len) lo_map_fd[fd] = U_NULLPTR;
    else
       {
       lock();
@@ -1042,9 +1077,9 @@ void UNotifier::callForAllEntryDynamic(bPFpv function)
          }
       }
 
-   UGenericHashMap<int,UEventFd*>::UGenericHashMapNode* _node;
+   UGenericHashMap<unsigned int,UEventFd*>::UGenericHashMapNode* pnode;
 
-   if ((_node = hi_map_fd->first()))
+   if ((pnode = hi_map_fd->first()))
       {
       do {
          item = hi_map_fd->elem();
@@ -1053,7 +1088,7 @@ void UNotifier::callForAllEntryDynamic(bPFpv function)
 
          if (function(item))
             {
-            U_DEBUG("UNotifier::callForAllEntryDynamic(): hi_map_fd(%p) = %p %d", _node, item, item->fd);
+            U_DEBUG("UNotifier::callForAllEntryDynamic(): hi_map_fd(%p) = %p %u", pnode, item, item->fd);
 
             handlerDelete(item);
 
@@ -1062,7 +1097,7 @@ void UNotifier::callForAllEntryDynamic(bPFpv function)
             if (num_connection == min_connection) return;
             }
          }
-      while ((_node = hi_map_fd->next(_node)));
+      while ((pnode = hi_map_fd->next(pnode)));
       }
 }
 
@@ -1098,9 +1133,9 @@ void UNotifier::clear()
             }
          }
 
-      UGenericHashMap<int,UEventFd*>::UGenericHashMapNode* _node;
+      UGenericHashMap<unsigned int,UEventFd*>::UGenericHashMapNode* pnode;
 
-      if ((_node = hi_map_fd->first()))
+      if ((pnode = hi_map_fd->first()))
          {
          do {
             item = hi_map_fd->elem();
@@ -1109,7 +1144,7 @@ void UNotifier::clear()
 
             if (item->fd != -1) handlerDelete(item);
             }
-         while ((_node = hi_map_fd->next(_node)));
+         while ((pnode = hi_map_fd->next(pnode)));
          }
       }
 
@@ -1117,7 +1152,7 @@ void UNotifier::clear()
 
    hi_map_fd->deallocate();
 
-   delete hi_map_fd;
+   U_DELETE(hi_map_fd)
 
 #ifndef USE_LIBEVENT
 # ifdef HAVE_EPOLL_WAIT
@@ -1125,7 +1160,7 @@ void UNotifier::clear()
 
    UMemoryPool::_free(events, max_connection + 1, sizeof(struct epoll_event));
 
-   (void) U_SYSCALL(close, "%d", epollfd);
+   (void) U_FF_SYSCALL(close, "%d", epollfd);
 # elif defined(HAVE_KQUEUE)
    U_INTERNAL_ASSERT_MAJOR(kq, 0)
    U_INTERNAL_ASSERT_POINTER(kqevents)
@@ -1134,7 +1169,7 @@ void UNotifier::clear()
    UMemoryPool::_free(kqevents,  max_connection, sizeof(struct kevent));
    UMemoryPool::_free(kqrevents, max_connection, sizeof(struct kevent));
 
-   (void) U_SYSCALL(close, "%d", kq);
+   (void) U_FF_SYSCALL(close, "%d", kq);
 # endif
 #endif
 }
@@ -1191,7 +1226,7 @@ void UNotifier::removeBadFd()
 
          U_INTERNAL_DUMP("fdmask = %B", __FDS_BITS(&fdmask)[0])
 
-         nfd = U_SYSCALL(select, "%d,%p,%p,%p,%p", fd+1, rmask, wmask, 0, &polling);
+         nfd = U_FF_SYSCALL(select, "%d,%p,%p,%p,%p", fd+1, rmask, wmask, 0, &polling);
 
          U_INTERNAL_DUMP("fd = %d op_mask = %B ISSET(read) = %b ISSET(write) = %b", fd, handler_event->op_mask,
                            (rmask ? FD_ISSET(fd, rmask) : false),
@@ -1237,15 +1272,14 @@ loop:
     * Specifying a timeout of zero causes poll() to return immediately, even if no file descriptors are ready
     */
 
-   ret = U_SYSCALL(poll, "%p,%d,%d", fds, 1, timeoutMS);
+   ret = U_FF_SYSCALL(poll, "%p,%d,%d", fds, 1, timeoutMS);
 
    U_INTERNAL_DUMP("errno = %d", errno)
 
    if (ret >  0) U_RETURN(ret);
    if (ret == 0)
       {
-        errno =
-      u_errno = EAGAIN;
+      errno = EAGAIN;
 
       U_RETURN(0);
       }
@@ -1386,8 +1420,9 @@ int UNotifier::read(int fd, char* buffer, int count, int timeoutMS)
 {
    U_TRACE(1, "UNotifier::read(%d,%p,%d,%d)", fd, buffer, count, timeoutMS)
 
-   if (fd < 0          &&
-       timeoutMS != -1 &&
+   U_INTERNAL_ASSERT_DIFFERS(fd, -1)
+
+   if (timeoutMS != -1 &&
        waitForRead(fd, timeoutMS) != 1)
       {
       U_RETURN(-1);
@@ -1498,10 +1533,10 @@ const char* UNotifier::dump(bool reset) const
                   << "fd_write_cnt                " << fd_write_cnt   << '\n';
    *UObjectIO::os << "fd_set_read                 ";
    char buffer[70];
-    UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%B"), __FDS_BITS(&fd_set_read)[0]));
+    UObjectIO::os->write(buffer, u__snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("%B"), __FDS_BITS(&fd_set_read)[0]));
     UObjectIO::os->put('\n');
    *UObjectIO::os << "fd_set_write                ";
-    UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%B"), __FDS_BITS(&fd_set_write)[0]));
+    UObjectIO::os->write(buffer, u__snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("%B"), __FDS_BITS(&fd_set_write)[0]));
     UObjectIO::os->put('\n');
 #endif
    *UObjectIO::os << "nfd_ready                   " << nfd_ready      << '\n'

@@ -57,7 +57,7 @@ static uint32_t execute_addr2line(char* buffer, uint32_t buffer_size, const char
       // Invokes addr2line utility to determine the function name
       // and the line information from an address in the code segment
 
-      (void) snprintf(buf, sizeof(buf), "%p", addr);
+      (void) snprintf(buf, U_CONSTANT_SIZE(buf), "%p", addr);
 
       (void) execlp("addr2line", "addr2line", buf, "-f", "-C", "-e", image, (char*)U_NULLPTR); // to avoid 'warning: missing sentinel in function call'
 
@@ -94,13 +94,10 @@ void UError::stackDump()
 {
    U_INTERNAL_TRACE("UError::stackDump()")
 
-   char name[128];
+   U_INTERNAL_ASSERT_POINTER(u_trace_folder)
 
-#ifndef U_SERVER_CAPTIVE_PORTAL
-   (void) u__snprintf(name, sizeof(name), U_CONSTANT_TO_PARAM("stack.%N.%P"), 0);
-#else
-   (void) u__snprintf(name, sizeof(name), U_CONSTANT_TO_PARAM("/tmp/stack.%N.%P"), 0);
-#endif
+   char name[U_PATH_MAX+1];
+   (void) u__snprintf(name, U_PATH_MAX, U_CONSTANT_TO_PARAM("%s/stack.%N.%P"), u_trace_folder);
 
    int fd = open(name, O_CREAT | O_WRONLY | O_APPEND | O_BINARY, 0666);
 
@@ -132,7 +129,7 @@ void UError::stackDump()
          char buf[32];
          int fd_err = open("/tmp/gbd.err", O_CREAT | O_WRONLY, 0666);
 
-         (void) u__snprintf(buf, sizeof(buf), U_CONSTANT_TO_PARAM("--pid=%P"), 0);
+         (void) u__snprintf(buf, U_CONSTANT_SIZE(buf), U_CONSTANT_TO_PARAM("--pid=%P"), 0);
 
          (void) dup2(fd, STDOUT_FILENO);
 #     ifdef U_COVERITY_FALSE_POSITIVE
@@ -188,7 +185,7 @@ void UError::stackDump()
 
    FILE* f = fdopen(fd, "w");
 
-   (void) fwrite(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%9D: %N (pid %P) === STACK TRACE ===\n"), 0), 1, f);
+   (void) fwrite(buffer, u__snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("%9D: %N (pid %P) === STACK TRACE ===\n"), 0), 1, f);
 
 # ifdef HAVE_DLFCN_H
    Dl_info dlinf;

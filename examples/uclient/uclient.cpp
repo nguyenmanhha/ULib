@@ -39,7 +39,7 @@ public:
       {
       U_TRACE(5, "Application::~Application()")
 
-      delete client;
+      U_DELETE(client)
       }
 
    void run(int argc, char* argv[], char* env[])
@@ -67,7 +67,7 @@ public:
 
       // manage arg operation
 
-      p = argv[optind++];
+      p = argv[optind];
 
       UString url(p, strlen(p));
 
@@ -87,7 +87,7 @@ public:
       // PID_FILE     write pid on file indicated
       // RES_TIMEOUT  timeout for response from server
       //
-      // LOG_FILE     locations   for file log
+      // LOG_FILE     locations for file log
       //
       // CERT_FILE    certificate of client
       // KEY_FILE     private key of client

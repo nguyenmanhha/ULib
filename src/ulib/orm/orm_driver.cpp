@@ -25,6 +25,7 @@
 #endif
 
 bool                  UOrmDriver::bexit;
+bool                  UOrmDriver::basync_pipeline_mode_avaliable;
 uint32_t              UOrmDriver::vdriver_size;
 uint32_t              UOrmDriver::env_driver_len;
 UString*              UOrmDriver::driver_dir;
@@ -36,52 +37,49 @@ UVector<UOrmDriver*>* UOrmDriver::vdriver;
 
 UOrmDriver::~UOrmDriver()
 {
-   U_TRACE_UNREGISTER_OBJECT(0, UOrmDriver)
+   U_TRACE_DTOR(0, UOrmDriver)
 }
 
 void UOrmDriver::clear()
 {
    U_TRACE_NO_PARAM(0, "UOrmDriver::clear()")
 
-   if (driver_dir) delete driver_dir;
+   if (driver_dir) U_DELETE(driver_dir)
 
 #if defined(USE_SQLITE) || defined(USE_MYSQL) || defined(USE_PGSQL)
    if (vdriver)
       {
-      delete vdriver;
-      delete vdriver_name;
+      U_DELETE(vdriver)
+      U_DELETE(vdriver_name)
       }
 #endif
 }
 
 // load driver modules
 
-U_NO_EXPORT void UOrmDriver::loadStaticLinkedModules(const char* name)
+U_NO_EXPORT void UOrmDriver::loadStaticLinkedModules(const UString& name)
 {
-   U_TRACE(0, "UOrmDriver::loadStaticLinkedModules(%S)", name)
+   U_TRACE(0, "UOrmDriver::loadStaticLinkedModules(%V)", name.rep)
 
 #if defined(U_STATIC_ORM_DRIVER_SQLITE) || defined(U_STATIC_ORM_DRIVER_MYSQL) || defined(U_STATIC_ORM_DRIVER_PGSQL)
-   UString x(name);
-   UOrmDriver* _driver = 0;
+   UOrmDriver* _driver = U_NULLPTR;
 
 # ifdef U_STATIC_ORM_DRIVER_SQLITE
-   if (x.equal(U_CONSTANT_TO_PARAM("sqlite"))) { U_NEW(UOrmDriverSqlite, _driver, UOrmDriverSqlite);  goto next; }
+   if (name.equal(U_CONSTANT_TO_PARAM("sqlite"))) { U_NEW(UOrmDriverSqlite, _driver, UOrmDriverSqlite);  goto next; }
 # endif
 # ifdef U_STATIC_ORM_DRIVER_MYSQL
-   if (x.equal(U_CONSTANT_TO_PARAM("mysql")))  { U_NEW(UOrmDriverMySql, _driver, UOrmDriverMySql); goto next; }
+   if (name.equal(U_CONSTANT_TO_PARAM("mysql")))  { U_NEW(UOrmDriverMySql, _driver, UOrmDriverMySql); goto next; }
 # endif
 # ifdef U_STATIC_ORM_DRIVER_PGSQL
-   if (x.equal(U_CONSTANT_TO_PARAM("pgsql")))  { U_NEW(UOrmDriverPgSql, _driver, UOrmDriverPgSql); goto next; }
+   if (name.equal(U_CONSTANT_TO_PARAM("pgsql")))  { U_NEW(UOrmDriverPgSql, _driver, UOrmDriverPgSql); goto next; }
 # endif
 next:
    if (_driver)
       {
       vdriver->push_back(_driver);
-      vdriver_name_static->push_back(x);
+      vdriver_name_static->push_back(name);
 
-#  ifndef U_LOG_DISABLE
-      if (UServer_Base::isLog()) ULog::log(U_CONSTANT_TO_PARAM("[%s] Link of static driver ok"), name);
-#  endif
+      U_SRV_LOG("[orm] Link of static driver %V ok", name.rep);
       }
 #endif
 }
@@ -92,7 +90,7 @@ void UOrmDriver::setDriverDirectory(const UString& dir)
 
    U_INTERNAL_ASSERT_EQUALS(driver_dir, U_NULLPTR)
 
-   U_NEW(UString, driver_dir, UString);
+   U_NEW_STRING(driver_dir, UString);
 
    // NB: we can't use relativ path because after we call chdir()...
 
@@ -161,7 +159,7 @@ bool UOrmDriver::loadDriver(const UString& dir, const UString& driver_list)
 
             if (_driver == U_NULLPTR)
                {
-               U_SRV_LOG("WARNING: load of driver %v failed", item.rep);
+               U_SRV_LOG("[orm] WARNING: load of driver %V failed", item.rep);
 
                continue;
                }
@@ -169,9 +167,7 @@ bool UOrmDriver::loadDriver(const UString& dir, const UString& driver_list)
             vdriver->push_back(_driver);
             vdriver_name_static->push_back(item);
 
-#        ifndef U_LOG_DISABLE
-            if (UServer_Base::isLog()) ULog::log(U_CONSTANT_TO_PARAM("[%v] Load of driver success"), item.rep);
-#        endif
+            U_SRV_LOG("[orm] Load of driver %V success", item.rep);
             }
          }
 
@@ -190,12 +186,19 @@ bool UOrmDriver::loadDriver(const UString& dir, const UString& driver_list)
          vdriver_name->push_back(item);
          }
 
-      delete vdriver_name_static;
+      U_DELETE(vdriver_name_static)
 
       env_driver = (const char*) U_SYSCALL(getenv, "%S", "ORM_DRIVER");
       env_option = (const char*) U_SYSCALL(getenv, "%S", "ORM_OPTION");
 
-      if (env_driver) env_driver_len = u__strlen(env_driver, __PRETTY_FUNCTION__);
+      if (env_driver)
+         {
+         env_driver_len = u__strlen(env_driver, __PRETTY_FUNCTION__);
+
+#     if defined(USE_PGSQL) && defined(U_STATIC_ORM_DRIVER_PGSQL)
+         if (isPGSQL()) basync_pipeline_mode_avaliable = true; // PostgresSQL v3 extended query protocol
+#     endif
+         }
       }
 #  endif
 
@@ -212,7 +215,7 @@ void UOrmDriver::printError(const char* function)
    const char* ptr2 = (SQLSTATE == U_NULLPTR ? (SQLSTATE = "") : " - SQLSTATE: ");
 
    char buffer[4096];
-   uint32_t len = u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%V on %V at %S - %s%s(%d, %s)%s%s"),
+   uint32_t len = u__snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("%V on %V at %S - %s%s(%d, %s)%s%s"),
                               name.rep, dbname.rep, function, errname, ptr1, errcode, errmsg, ptr2, SQLSTATE);
 
    if (UOrmDriver::bexit == false)
@@ -303,9 +306,9 @@ UString UOrmDriver::getOptionValue(const char* _name, uint32_t len)
    return UString::getStringNull();
 }
 
-USqlStatementBindParam::USqlStatementBindParam(const char* s, int n, bool bstatic)
+USqlStatementBindParam::USqlStatementBindParam(const char* s, uint32_t n, bool bstatic)
 {
-   U_TRACE_REGISTER_OBJECT(0, USqlStatementBindParam, "%.*S,%u,%b", n, s, n, bstatic)
+   U_TRACE_CTOR(0, USqlStatementBindParam, "%.*S,%u,%b", n, s, n, bstatic)
 
    type        = 0;
    length      = n;
@@ -318,13 +321,13 @@ USqlStatementBindParam::USqlStatementBindParam(const char* s, int n, bool bstati
       }
    else
       {
-      U_NEW(UString, pstr, UString((void*)s, n));
+      U_NEW_STRING(pstr, UString((void*)s, n));
 
       buffer = pstr->data();
       }
 }
 
-USqlStatementBindParam* UOrmDriver::creatSqlStatementBindParam(USqlStatement* pstmt, const char* s, int n, bool bstatic, int rebind)
+USqlStatementBindParam* UOrmDriver::creatSqlStatementBindParam(USqlStatement* pstmt, const char* s, uint32_t n, bool bstatic, int rebind)
 {
    U_TRACE(0, "UOrmDriver::creatSqlStatementBindParam(%p,%.*S,%u,%b,%d)", pstmt, n, s, n, bstatic, rebind)
 
@@ -348,13 +351,13 @@ USqlStatementBindParam* UOrmDriver::creatSqlStatementBindParam(USqlStatement* ps
 
       bstatic = false;
 
-      delete param->pstr;
+      U_DELETE(param->pstr)
       }
 
    if (bstatic) param->buffer = (void*)s;
    else
       {
-      U_NEW(UString, param->pstr, UString((void*)s, n));
+      U_NEW_STRING(param->pstr, UString((void*)s, n));
 
       param->buffer = param->pstr->data();
       }
@@ -618,15 +621,13 @@ template <> void UOrmDriver::bindResult<unsigned long long>(USqlStatement* pstmt
    pstmt->bindResult(creatSqlStatementBindResult(&v));
 }
 
-template <> void UOrmDriver::bindResult<UStringRep>(USqlStatement* pstmt, UStringRep& v)
+template <> void UOrmDriver::bindResult<UString>(USqlStatement* pstmt, UString& v)
 {
-   U_TRACE(0, "UOrmDriver::bindResult<UString>(%p,%V)", pstmt, &v)
+   U_TRACE(0, "UOrmDriver::bindResult<UString>(%p,%V)", pstmt, v.rep)
 
    U_INTERNAL_ASSERT_POINTER(pstmt)
 
-   USqlStatementBindResult* ptr = creatSqlStatementBindResult(v);
-
-   pstmt->bindResult(ptr);
+   pstmt->bindResult(creatSqlStatementBindResult(v));
 }
 
 #if defined(U_STDCPP_ENABLE) && defined(DEBUG)
@@ -650,12 +651,12 @@ const char* USqlStatementBindParam::dump(bool _reset) const
 
 const char* USqlStatementBindResult::dump(bool _reset) const
 {
-   *UObjectIO::os << "type             " << type        << '\n'
-                  << "buffer           " << buffer      << '\n'
-                  << "length           " << length      << '\n'
-                  << "is_null          " << is_null     << '\n'
-                  << "is_unsigned      " << is_unsigned << '\n'
-                  << "pstr (UStringRep " << (void*)pstr << ')';
+   *UObjectIO::os << "type          " << type        << '\n'
+                  << "buffer        " << buffer      << '\n'
+                  << "length        " << length      << '\n'
+                  << "is_null       " << is_null     << '\n'
+                  << "is_unsigned   " << is_unsigned << '\n'
+                  << "pstr (UString " << (void*)pstr << ')';
 
    if (_reset)
       {
@@ -669,13 +670,14 @@ const char* USqlStatementBindResult::dump(bool _reset) const
 
 const char* USqlStatement::dump(bool _reset) const
 {
-   *UObjectIO::os << "pHandle                                    " << pHandle         << '\n'
-                  << "current_row                                " << current_row     << '\n'
-                  << "num_row_result                             " << num_row_result  << '\n'
-                  << "num_bind_param                             " << num_bind_param  << '\n'
-                  << "num_bind_result                            " << num_bind_result << '\n'
-                  << "vparam  (UVector<USqlStatementBindParam*>  " << (void*)&vparam  << ")\n"
-                  << "vresult (UVector<USqlStatementBindResult*> " << (void*)&vresult << ')';
+   *UObjectIO::os << "pHandle                                    " << pHandle                           << '\n'
+                  << "current_row                                " << current_row                       << '\n'
+                  << "num_row_result                             " << num_row_result                    << '\n'
+                  << "num_bind_param                             " << num_bind_param                    << '\n'
+                  << "num_bind_result                            " << num_bind_result                   << '\n'
+                  << "asyncPipelineHandlerResult                 " << (void*)asyncPipelineHandlerResult << '\n'
+                  << "vparam  (UVector<USqlStatementBindParam*>  " << (void*)&vparam                    << ")\n"
+                  << "vresult (UVector<USqlStatementBindResult*> " << (void*)&vresult                   << ')';
 
    if (_reset)
       {

@@ -37,7 +37,7 @@ int      USSLSocket::session_cache_index;
 SSL_CTX* USSLSocket::cctx; // client
 SSL_CTX* USSLSocket::sctx; // server
 
-#if !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
+#if defined(ENABLE_THREAD) && !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
 bool                 USSLSocket::ocsp_nonce;
 USSLSocket::stapling USSLSocket::staple;
 #endif
@@ -66,7 +66,7 @@ USSLSocket::stapling USSLSocket::staple;
 
 USSLSocket::USSLSocket(bool bSocketIsIPv6, SSL_CTX* _ctx, bool bserver) : USocket(bSocketIsIPv6)
 {
-   U_TRACE_REGISTER_OBJECT(0, USSLSocket, "%b,%p,%b", bSocketIsIPv6, _ctx, bserver)
+   U_TRACE_CTOR(0, USSLSocket, "%b,%p,%b", bSocketIsIPv6, _ctx, bserver)
 
    ciphersuite_model = Intermediate;
 
@@ -107,12 +107,13 @@ USSLSocket::USSLSocket(bool bSocketIsIPv6, SSL_CTX* _ctx, bool bserver) : USocke
 
 USSLSocket::~USSLSocket()
 {
-   U_TRACE_UNREGISTER_OBJECT(0, USSLSocket)
+   U_TRACE_DTOR(0, USSLSocket)
 
    U_INTERNAL_ASSERT_POINTER(ctx)
 
    if (ssl) SSL_free(ssl); // SSL_free will free UServices::store
-            SSL_CTX_free(ctx);
+
+   SSL_CTX_free(ctx);
 }
 
 void USSLSocket::info_callback(const SSL* ssl, int where, int ret)
@@ -539,7 +540,7 @@ bool USSLSocket::setContext(const char* dh_file, const char* cert_file, const ch
 
       if (result == 0) U_RETURN(false);
 
-#  if !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
+#  if defined(ENABLE_THREAD) && !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
       UString str(cert_file, u__strlen(cert_file, __PRETTY_FUNCTION__));
 
       staple.cert = UCertificate::readX509(UFile::contentOf(str), "PEM");
@@ -587,7 +588,7 @@ bool USSLSocket::setContext(const char* dh_file, const char* cert_file, const ch
 
       if (result == 0) U_RETURN(false);
 
-#  if !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
+#  if defined(ENABLE_THREAD) && !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
    // staple.pkey = UServices::loadKey(UFile::contentOf(UString(private_key_file, u__strlen(private_key_file, __PRETTY_FUNCTION__))), "PEM", true, passwd, 0);
 
       U_INTERNAL_DUMP("staple.pkey = %p", staple.pkey)
@@ -930,7 +931,6 @@ bool USSLSocket::askForClientCertificate()
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
    ssl->state = SSL_ST_ACCEPT;
-#endif
 
    ret = U_SYSCALL(SSL_do_handshake, "%p", ssl);
 
@@ -942,6 +942,29 @@ bool USSLSocket::askForClientCertificate()
 
       U_RETURN(false);
       }
+#else
+   char peekbuf[1];
+
+   if (U_SYSCALL(SSL_is_init_finished, "%p", ssl) == false)
+      {
+#  ifdef DEBUG
+      dumpStatus(true);
+#  endif
+
+      U_RETURN(false);
+      }
+
+   (void) U_SYSCALL(SSL_peek, "%p,%p,%d", ssl, peekbuf, 0);
+
+   if (U_SYSCALL(SSL_is_init_finished, "%p", ssl) == false)
+      {
+#  ifdef DEBUG
+      dumpStatus(true);
+#  endif
+
+      U_RETURN(false);
+      }
+#endif
 
    U_RETURN(true);
 }
@@ -1184,11 +1207,10 @@ end:
    U_RETURN(iBytesWrite);
 }
 
-#if !defined(OPENSSL_NO_TLSEXT) && defined(SSL_set_tlsext_host_name)
-
 // This callback function is executed when OpenSSL encounters an extended
 // client hello with a server name indication extension ("SNI", cf. RFC 6066)
 
+#if !defined(OPENSSL_NO_TLSEXT) && defined(SSL_set_tlsext_host_name)
 int USSLSocket::callback_ServerNameIndication(SSL* _ssl, int* alert, void* data)
 {
    U_TRACE(1, "USSLSocket::callback_ServerNameIndication(%p,%p,%p)", _ssl, alert, data)
@@ -1234,7 +1256,7 @@ int USSLSocket::callback_ServerNameIndication(SSL* _ssl, int* alert, void* data)
  * downloading OCSP responses
  */
 
-#if !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
+#if defined(ENABLE_THREAD) && !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
 bool USSLSocket::setDataForStapling()
 {
    U_TRACE_NO_PARAM(1, "USSLSocket::setDataForStapling()")
@@ -1357,14 +1379,10 @@ next:
          U_INTERNAL_ASSERT_EQUALS(staple.client, U_NULLPTR)
          U_INTERNAL_ASSERT_EQUALS(staple.request, U_NULLPTR)
 
-         U_NEW(UString, staple.url,     UString((void*)s, len));
-         U_NEW(UString, staple.request, UString(U_CAPACITY));
+         U_NEW_STRING(staple.url,     UString((void*)s, len));
+         U_NEW_STRING(staple.request, UString(U_CAPACITY));
 
          U_NEW(UHttpClient<UTCPSocket>, staple.client, UHttpClient<UTCPSocket>(U_NULLPTR));
-
-#     ifndef U_LOG_DISABLE
-         if (UServer_Base::isLog()) staple.client->setLogShared();
-#     endif
 
          unsigned char* p = (unsigned char*) staple.request->data();
 
@@ -1372,7 +1390,7 @@ next:
 
          /*
 #     ifdef DEBUG
-         (void) UFile::writeToTmp(U_STRING_TO_PARAM(*(staple.request)), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("ocsp.request.%P"), 0);
+         U_FILE_WRITE_TO_TMP(*(staple.request), "ocsp.request.%P");
 #     endif
 
          UString buffer(U_CAPACITY);
@@ -1410,7 +1428,7 @@ uint32_t USSLSocket::doStapling()
 
    // send the request and get a response
 
-   if (staple.client->sendPost(*(staple.url), *(staple.request), U_CONSTANT_TO_PARAM("application/ocsp-request")))
+   if (staple.client->sendPOST(*(staple.url), *(staple.request), U_CONSTANT_TO_PARAM("application/ocsp-request")))
       {
       /*
       BIO* conn = (BIO*) U_SYSCALL(BIO_new_fd, "%d,%d", staple.client->getFd(), BIO_NOCLOSE);
@@ -1530,14 +1548,8 @@ uint32_t USSLSocket::doStapling()
             {
             U_DEBUG("ocsp: no status found");
 
-#        ifdef DEBUG
-         // (void) UFile::writeToTmp(U_STRING_TO_PARAM(response), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("ocsp.response.%P"), 0);
-#        endif
-
             goto end;
             }
-
-         nextupdate_str = UStringExt::ASN1TimetoString(nextupdate);
 
          if (status != V_OCSP_CERTSTATUS_GOOD)
             {
@@ -1552,17 +1564,19 @@ uint32_t USSLSocket::doStapling()
 
          if (result == false) goto end;
 
-#     if defined(ENABLE_THREAD) && !defined(_MSWINDOWS_)
-         UServer_Base::lock_ocsp_staple->lock();
-#     endif
+         nextupdate_str = UStringExt::ASN1TimetoString(nextupdate);
+
+         U_SRV_VALID_OCSP_STAPLE = UTimeDate::getSecondFromDate(nextupdate_str.data());
 
          U_INTERNAL_ASSERT_POINTER(staple.data)
 
          p = (const unsigned char*) staple.data;
 
-         U_SRV_LEN_OCSP_STAPLE = i2d_OCSP_RESPONSE(ocsp, (unsigned char**)&p);
+#     if defined(ENABLE_THREAD) && !defined(_MSWINDOWS_)
+         UServer_Base::lock_ocsp_staple->lock();
+#     endif
 
-         U_SRV_VALID_OCSP_STAPLE = UTimeDate::getSecondFromTime(nextupdate_str.data(), true);
+         U_SRV_LEN_OCSP_STAPLE = i2d_OCSP_RESPONSE(ocsp, (unsigned char**)&p);
 
 #     if defined(ENABLE_THREAD) && !defined(_MSWINDOWS_)
          UServer_Base::lock_ocsp_staple->unlock();
@@ -1651,9 +1665,9 @@ void USSLSocket::cleanupStapling()
 {
    U_TRACE_NO_PARAM(1, "USSLSocket::cleanupStapling()")
 
-   if (staple.url)     delete staple.url;
-   if (staple.client)  delete staple.client;
-   if (staple.request) delete staple.request;
+   if (staple.url)     U_DELETE(staple.url)
+   if (staple.client)  U_DELETE(staple.client)
+   if (staple.request) U_DELETE(staple.request)
 
    if (staple.cert)   U_SYSCALL_VOID(X509_free,         "%p", staple.cert);
    if (staple.pkey)   U_SYSCALL_VOID(EVP_PKEY_free,     "%p", staple.pkey);

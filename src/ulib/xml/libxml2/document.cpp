@@ -44,7 +44,7 @@ void UXML2Document::init()
 
 UXML2Document::UXML2Document(const UString& _data) : data(_data)
 {
-   U_TRACE_REGISTER_OBJECT(0, UXML2Document, "%V", _data.rep)
+   U_TRACE_CTOR(0, UXML2Document, "%V", _data.rep)
 
    if (binit == false) init();
 
@@ -154,7 +154,7 @@ uint32_t UXML2Document::getElement(UVector<UString>& velement, const char* tag, 
 
       if (pos == U_NOT_FOUND) break;
 
-      velement.push(element);
+      velement.push_back(element);
       }
 
    uint32_t result = velement.size() - n;

@@ -18,7 +18,7 @@ struct timeval ULDAP::timeOut = { 30L, 0L }; // 30 second connection/search time
 
 ULDAPEntry::ULDAPEntry(int num_names, const char** names, int num_entry)
 {
-   U_TRACE_REGISTER_OBJECT(0, ULDAPEntry, "%d,%p,%d", num_names, names, num_entry)
+   U_TRACE_CTOR(0, ULDAPEntry, "%d,%p,%d", num_names, names, num_entry)
 
    U_INTERNAL_ASSERT_EQUALS(names[num_names], U_NULLPTR)
 
@@ -34,7 +34,7 @@ ULDAPEntry::ULDAPEntry(int num_names, const char** names, int num_entry)
 
 ULDAPEntry::~ULDAPEntry()
 {
-   U_TRACE_UNREGISTER_OBJECT(0, ULDAPEntry)
+   U_TRACE_DTOR(0, ULDAPEntry)
 
    for (int i = 0, j, k = 0; i < n_entry; ++i)
       {
@@ -50,7 +50,7 @@ ULDAPEntry::~ULDAPEntry()
                {
                U_INTERNAL_DUMP("ULDAPEntry(%d): %S = %V", k, attr_name[j], attr_val[k]->rep)
 
-               delete attr_val[k];
+               U_DELETE(attr_val[k])
                }
             }
          }
@@ -74,7 +74,7 @@ void ULDAPEntry::set(char* attribute, char** values, int index_entry)
          {
          U_INTERNAL_DUMP("ULDAPEntry(%d): %S", k, attr_name[j])
 
-         U_NEW(UString, attr_val[k], UString((void*)values[0], u__strlen(values[0], __PRETTY_FUNCTION__)));
+         U_NEW_STRING(attr_val[k], UString((void*)values[0], u__strlen(values[0], __PRETTY_FUNCTION__)));
 
          for (j = 1; values[j]; ++j)
             {
@@ -101,7 +101,7 @@ void ULDAPEntry::set(char* attribute, char* value, uint32_t len, int index_entry
          {
          U_INTERNAL_DUMP("ULDAPEntry(%d): %S", k, attr_name[j])
 
-         U_NEW(UString, attr_val[k], UString((void*)value, len));
+         U_NEW_STRING(attr_val[k], UString((void*)value, len));
 
          U_INTERNAL_DUMP("value = %V", attr_val[k]->rep)
 
@@ -382,7 +382,7 @@ bool ULDAP::init(const char* url)
    ludpp = (LDAPURLDesc*) calloc(1, sizeof(LDAPURLDesc));
 
    ludpp->lud_host  = _url.getHost().c_strdup();
-   ludpp->lud_port  = _url.getPort();
+   ludpp->lud_port  = _url.getPortNumber();
    ludpp->lud_dn    = _url.getPath().c_strndup(1);
    ludpp->lud_scope = LDAP_SCOPE_BASE;
 
@@ -531,7 +531,7 @@ next:
 #  endif
          }
 
-      U_INTERNAL_DUMP("ldap_url_parse() failed - %.*s", u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("(%d, %s) - %s"), result, descr, errstr), buffer)
+      U_INTERNAL_DUMP("ldap_url_parse() failed - %.*s", u__snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("(%d, %s) - %s"), result, descr, errstr), buffer)
 #  endif
 
       U_RETURN(false);

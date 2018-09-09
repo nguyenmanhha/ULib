@@ -18,8 +18,9 @@
 int                       UValue::pos;
 int                       UValue::jsonParseFlags;
 char*                     UValue::pstringify;
-uint32_t                  UValue::size;
+uint32_t                  UValue::size_output;
 UValue::jval              UValue::o;
+UFlatBuffer*              UValue::pfb;
 UValue::parser_stack_data UValue::sd[U_JSON_PARSE_STACK_SIZE];
 
 #ifdef DEBUG
@@ -35,12 +36,12 @@ enum jsonParseFlagsType {
 
 UValue::~UValue()
 {
-   U_TRACE_UNREGISTER_OBJECT(0, UValue)
+   U_TRACE_DTOR(0, UValue)
 
    switch (getTag())
       {
-      case STRING_VALUE:
-      case    UTF_VALUE:
+      case U_STRING_VALUE:
+      case    U_UTF_VALUE:
          {
          UStringRep* rep = (UStringRep*)getPayload();
 
@@ -50,34 +51,34 @@ UValue::~UValue()
          }
       break;
 
-      case ARRAY_VALUE:
+      case U_ARRAY_VALUE:
          {
          UValue* element = toNode();
 
          while (element)
             {
-            U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+            U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
             next = element->next;
 
-            delete element;
+            U_DELETE(element)
 
             element = next;
             }
          }
       break;
 
-      case OBJECT_VALUE:
+      case U_OBJECT_VALUE:
          {
          UValue* element = toNode();
 
          while (element)
             {
-            U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+            U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
             U_ASSERT(isStringOrUTF(element->pkey.ival))
 
-            UStringRep* rep = (UStringRep*)getPayload(element->pkey.ival);
+            UStringRep* rep = (UStringRep*)u_getPayload(element->pkey.ival);
 
             U_INTERNAL_DUMP("element->pkey(%p) = %V", rep, rep)
 
@@ -85,7 +86,7 @@ UValue::~UValue()
 
             next = element->next;
 
-            delete element;
+            U_DELETE(element)
 
             element = next;
             }
@@ -111,9 +112,9 @@ void UValue::clear()
       0,/* 9 */
    };
 
-   int type = getTag();
+   uint8_t type = getTag();
 
-   U_DUMP("dispatch_table[(%d,%S)] = %p", type, getDataTypeDescription(type), dispatch_table[type])
+   U_DUMP("dispatch_table[(%u,%S)] = %d", type, getDataTypeDescription(type), dispatch_table[type])
 
    goto *((char*)&&case_double + dispatch_table[type]);
 
@@ -142,11 +143,11 @@ case_array:
 
    while (element)
       {
-      U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+      U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
       next = element->next;
 
-      delete element;
+      U_DELETE(element)
 
       element = next;
       }
@@ -160,11 +161,11 @@ case_object:
 
    while (element)
       {
-      U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+      U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
       U_ASSERT(isStringOrUTF(element->pkey.ival))
 
-      UStringRep* rep = (UStringRep*)getPayload(element->pkey.ival);
+      UStringRep* rep = (UStringRep*)u_getPayload(element->pkey.ival);
 
       U_INTERNAL_DUMP("element->pkey(%p) = %V", rep, rep)
 
@@ -172,7 +173,7 @@ case_object:
 
       next = element->next;
 
-      delete element;
+      U_DELETE(element)
 
       element = next;
       }
@@ -181,20 +182,20 @@ case_object:
    }
 }
 
-__pure UValue* UValue::at(uint32_t pos) const
+__pure UValue* UValue::at(uint32_t idx) const
 {
-   U_TRACE(0, "UValue::at(%u)", pos)
+   U_TRACE(0, "UValue::at(%u)", idx)
 
-   if (getTag() == ARRAY_VALUE)
+   if (getTag() == U_ARRAY_VALUE)
       {
       uint32_t i = 0;
       UValue* element = toNode();
 
       while (element)
          {
-         U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+         U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
-         if (i++ == pos) U_RETURN_POINTER(element, UValue);
+         if (i++ == idx) U_RETURN_POINTER(element, UValue);
 
          element = element->next;
          }
@@ -207,17 +208,17 @@ __pure UValue* UValue::at(const char* key, uint32_t key_len) const
 {
    U_TRACE(0, "UValue::at(%.*S,%u)", key_len, key, key_len)
 
-   if (getTag() == OBJECT_VALUE)
+   if (getTag() == U_OBJECT_VALUE)
       {
       UValue* element = toNode();
 
       while (element)
          {
-         U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+         U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
          U_ASSERT(isStringOrUTF(element->pkey.ival))
 
-         UStringRep* rep = (UStringRep*)getPayload(element->pkey.ival);
+         UStringRep* rep = (UStringRep*)u_getPayload(element->pkey.ival);
 
          U_INTERNAL_DUMP("element->pkey(%p) = %V", rep, rep)
 
@@ -234,22 +235,22 @@ uint32_t UValue::getMemberNames(UVector<UString>& members) const
 {
    U_TRACE(0, "UValue::getMemberNames(%p)", &members)
 
-   if (getTag() == OBJECT_VALUE)
+   if (getTag() == U_OBJECT_VALUE)
       {
       UValue* element = toNode();
       uint32_t len, n = members.size();
 
       while (element)
          {
-         U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+         U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
          U_ASSERT(isStringOrUTF(element->pkey.ival))
 
-         UStringRep* rep = (UStringRep*)getPayload(element->pkey.ival);
+         UStringRep* rep = (UStringRep*)u_getPayload(element->pkey.ival);
 
          U_INTERNAL_DUMP("element->pkey(%p) = %V", rep, rep)
 
-         members.push(rep);
+         members.push_back(rep);
 
          element = element->next;
          }
@@ -264,24 +265,22 @@ uint32_t UValue::getMemberNames(UVector<UString>& members) const
 
 UString UValue::getString(uint64_t value)
 {
-   U_TRACE(0, "UValue::getString(0x%x)", value)
+   U_TRACE(0, "UValue::getString(%#llx)", value)
 
    U_ASSERT(isStringOrUTF(value))
 
-   UStringRep* rep = (UStringRep*)getPayload(value);
+   UStringRep* rep = (UStringRep*)u_getPayload(value);
 
    U_INTERNAL_ASSERT_POINTER(rep)
 
-   int type = getTag(value);
-
-   if (type == STRING_VALUE)
+   if (getTag(value) == U_STRING_VALUE)
       {
       UString str(rep);
 
       U_RETURN_STRING(str);
       }
 
-   U_INTERNAL_ASSERT_EQUALS(type, UTF_VALUE)
+   U_ASSERT_EQUALS(getTag(value), U_UTF_VALUE)
 
    uint32_t len = rep->size();
 
@@ -424,12 +423,13 @@ void UValue::stringify() const
       (int)((char*)&&case_utf-(char*)&&case_double),
       (int)((char*)&&case_array-(char*)&&case_double),
       (int)((char*)&&case_object-(char*)&&case_double),
-      (int)((char*)&&case_null-(char*)&&case_double)
+      (int)((char*)&&case_null-(char*)&&case_double),
+      (int)((char*)&&case_compact-(char*)&&case_double)
    };
 
-   int type = getTag();
+   uint8_t type = getTag();
 
-   U_DUMP("dispatch_table[(%d,%S)] = %p", type, getDataTypeDescription(type), dispatch_table[type])
+   U_DUMP("dispatch_table[(%u,%S)] = %d", type, getDataTypeDescription(type), dispatch_table[type])
 
    goto *((char*)&&case_double + dispatch_table[type]);
 
@@ -439,12 +439,12 @@ case_double:
    return;
 
 case_int:
-   pstringify = u_num2str32s(getInt(), pstringify);
+   pstringify = u_num2str64s(getInt64(), pstringify);
 
    return;
 
 case_uint:
-   pstringify = u_num2str32(getUInt(), pstringify);
+   pstringify = u_num2str64(getUInt64(), pstringify);
 
    return;
 
@@ -474,7 +474,7 @@ case_array:
 
    if (element)
       {
-l1:   U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+l1:   U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
       element->stringify();
 
@@ -499,7 +499,7 @@ case_object:
 
    if (element)
       {
-l2:   U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+l2:   U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
       element->emitKey();
 
@@ -524,6 +524,19 @@ case_null:
    u_put_unalignedp32(pstringify, U_MULTICHAR_CONSTANT32('n','u','l','l'));
 
    pstringify += U_CONSTANT_SIZE("null");
+
+   return;
+
+case_compact:
+   *pstringify++ = '{';
+
+   emitString((UStringRep*)u_getPayload(pkey.ival));
+
+   *pstringify++ = ':';
+
+   emitString((UStringRep*)u_getPayload(value.ival));
+
+   *pstringify++ = '}';
 }
 
 void UValue::prettify(uint32_t indent) const
@@ -543,24 +556,24 @@ void UValue::prettify(uint32_t indent) const
       (int)((char*)&&case_null-(char*)&&case_double)
    };
 
-   int type = getTag();
+   uint8_t type = getTag();
 
-   U_DUMP("dispatch_table[(%d,%S)] = %p", type, getDataTypeDescription(type), dispatch_table[type])
+   U_DUMP("dispatch_table[(%u,%S)] = %d", type, getDataTypeDescription(type), dispatch_table[type])
 
    goto *((char*)&&case_double + dispatch_table[type]);
 
 case_double:
-   pstringify = u_dtoa(value.real, pstringify); 
+   pstringify = u_dtoa(value.real, pstringify);
 
    return;
 
 case_int:
-   pstringify = u_num2str32s(getInt(), pstringify);
+   pstringify = u_num2str64s(getInt64(), pstringify);
 
    return;
 
 case_uint:
-   pstringify = u_num2str32(getUInt(), pstringify);
+   pstringify = u_num2str64(getUInt64(), pstringify);
 
    return;
 
@@ -592,7 +605,7 @@ case_array:
                          pstringify += 2;
 
       do {
-         U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+         U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
          (void) memset(pstringify, ' ', indent+4);
                        pstringify +=    indent+4;
@@ -635,7 +648,7 @@ case_object:
                          pstringify += 2;
 
       do {
-         U_DUMP("element = %p element->next = %p element->type = (%d,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+         U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
 
          (void) memset(pstringify, ' ', indent+4);
                        pstringify +=    indent+4;
@@ -677,6 +690,371 @@ case_null:
    u_put_unalignedp32(pstringify, U_MULTICHAR_CONSTANT32('n','u','l','l'));
 
    pstringify += U_CONSTANT_SIZE("null");
+}
+
+void UValue::toFlatBufferFromJSON() const
+{
+   U_TRACE_NO_PARAM(0, "UValue::toFlatBufferFromJSON()")
+
+   static const int dispatch_table[] = {
+      0,/* 0 */
+      (int)((char*)&&case_int-(char*)&&case_double),
+      (int)((char*)&&case_uint-(char*)&&case_double),
+      (int)((char*)&&case_true-(char*)&&case_double),
+      (int)((char*)&&case_false-(char*)&&case_double),
+      (int)((char*)&&case_string-(char*)&&case_double),
+      (int)((char*)&&case_utf-(char*)&&case_double),
+      (int)((char*)&&case_array-(char*)&&case_double),
+      (int)((char*)&&case_object-(char*)&&case_double),
+      (int)((char*)&&case_null-(char*)&&case_double)
+   };
+
+   uint32_t n;
+   UStringRep* rep;
+   uint8_t type = getTag();
+
+   U_DUMP("dispatch_table[(%u,%S)] = %d", type, getDataTypeDescription(type), dispatch_table[type])
+
+   goto *((char*)&&case_double + dispatch_table[type]);
+
+case_double:
+   pfb->Add(value.real);
+
+   return;
+
+case_int:
+   pfb->Int(getInt64());
+
+   return;
+
+case_uint:
+   pfb->UInt(getUInt64());
+
+   return;
+
+case_true:
+   pfb->Add(true);
+
+   return;
+
+case_false:
+   pfb->Add(false);
+
+   return;
+
+case_string:
+case_utf:
+   rep = (UStringRep*)getPayload();
+
+   n = rep->size();
+
+   pfb->Add(rep->data(), n);
+
+   pstringify += UFlatBuffer::GetByteWidth(n) + n;
+
+   return;
+
+case_array:
+   {
+   UValue* element = toNode();
+
+   if (element == U_NULLPTR) pfb->AddVectorEmpty();
+   else
+      {
+      bool typed, fixed;
+      uint32_t start = pfb->StartVector();
+      uint8_t old_type = element->getTag();
+
+      n     = 1;
+      fixed = ((typed = (isArrayOrObject(old_type) == false)) ? isNumeric(old_type) : false);
+
+l1:   U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+
+      element->toFlatBufferFromJSON();
+
+      if ((element = element->next))
+         {
+         U_INTERNAL_DUMP("typed = %b fixed = %b old_type = %u n = %u", typed, fixed, old_type, n)
+
+         if (typed)
+            {
+            if (element->getTag() == old_type)
+               {
+               if (fixed &&
+                   ++n > 4)
+                  {
+                  fixed = false;
+                  }
+               }
+            else if (isBool(old_type)  == false ||
+                     element->isBool() == false)
+               {
+               typed = fixed = false;
+               }
+            }
+
+         goto l1;
+         }
+
+      pfb->EndVector(start, typed, fixed);
+      }
+
+   pstringify = (char*)pfb->getPointer(); 
+
+   return;
+   }
+
+case_object:
+   {
+   UValue* element = toNode();
+
+   if (element == U_NULLPTR) pfb->AddMapEmpty();
+   else
+      {
+      uint32_t start = pfb->StartMap();
+
+l2:   U_DUMP("element = %p element->next = %p element->type = (%u,%S)", element, element->next, element->getTag(), getDataTypeDescription(element->getTag()))
+
+      rep = (UStringRep*)u_getPayload(element->pkey.ival);
+
+      pfb->Key(U_STRING_TO_PARAM(*rep));
+
+      element->toFlatBufferFromJSON();
+
+      if ((element = element->next)) goto l2;
+
+      pfb->EndMap(start);
+      }
+
+   pstringify = (char*)pfb->getPointer();
+
+   return;
+   }
+
+case_null:
+   pfb->Add();
+}
+
+void UValue::fromFlatBufferToJSON(UFlatBuffer& fb)
+{
+   U_TRACE(0, "UValue::fromFlatBufferToJSON(%p)", &fb)
+
+   uint8_t type = fb.GetType();
+
+   U_DUMP("fb.GetType() = (%u,%S)", type, UFlatBuffer::getTypeDescription(type))
+
+   switch (type)
+      {
+      case UFlatBufferValue::TYPE_NULL:           setNull();                        break;
+      case UFlatBufferValue::TYPE_BOOL:           setBool(  fb.AsBool());           break;
+      case UFlatBufferValue::TYPE_INT:            setInt64( fb.AsInt64());          break;
+      case UFlatBufferValue::TYPE_UINT:           setUInt64(fb.AsUInt64());         break;
+      case UFlatBufferValue::TYPE_INDIRECT_INT:   setInt64( fb.AsIndirectInt64());  break;
+      case UFlatBufferValue::TYPE_INDIRECT_UINT:  setUInt64(fb.AsIndirectUInt64()); break;
+      case UFlatBufferValue::TYPE_FLOAT:          setDouble(fb.AsDouble());         break;
+      case UFlatBufferValue::TYPE_INDIRECT_FLOAT: setDouble(fb.AsIndirectDouble()); break;
+
+      case UFlatBufferValue::TYPE_STRING:
+         {
+         uint8_t* str = fb.Indirect();
+
+         addString((const char*)str, fb.getSize(str));
+         }
+      break;
+
+      case UFlatBufferValue::TYPE_VECTOR:
+      case UFlatBufferValue::TYPE_VECTOR_STRING:
+      case UFlatBufferValue::TYPE_VECTOR_INT:
+      case UFlatBufferValue::TYPE_VECTOR_UINT:
+      case UFlatBufferValue::TYPE_VECTOR_FLOAT:
+      case UFlatBufferValue::TYPE_VECTOR_INT2:
+      case UFlatBufferValue::TYPE_VECTOR_UINT2:
+      case UFlatBufferValue::TYPE_VECTOR_FLOAT2:
+      case UFlatBufferValue::TYPE_VECTOR_INT3:
+      case UFlatBufferValue::TYPE_VECTOR_UINT3:
+      case UFlatBufferValue::TYPE_VECTOR_FLOAT3:
+      case UFlatBufferValue::TYPE_VECTOR_INT4:
+      case UFlatBufferValue::TYPE_VECTOR_UINT4:
+      case UFlatBufferValue::TYPE_VECTOR_FLOAT4:
+         {
+         UFlatBuffer vec;
+         uint32_t i = 0, n;
+
+         initStackParser(false);
+
+         switch (type)
+            {
+            case UFlatBufferValue::TYPE_VECTOR:
+               {
+               UFlatBuffer fbb;
+
+               fb.AsVector(vec);
+
+               for (n = vec.GetSize(); i < n; ++i)
+                  {
+                  vec.AsVectorGet(i, fbb);
+
+                  fromFlatBufferToJSON(fbb);
+                  }
+               }
+            break;
+
+            case UFlatBufferValue::TYPE_VECTOR_STRING:
+               {
+               fb.AsTypedVector(vec);
+
+               for (n = vec.GetSize(); i < n; ++i) addStringParser(vec.AsTypedOrFixedVectorGet<UString>(i));
+               }
+            break;
+
+            default:
+               {
+               fb.AsFixedTypedVector(vec);
+
+               switch (type)
+                  {
+                  case UFlatBufferValue::TYPE_VECTOR_INT4:   setInt64( vec.AsTypedOrFixedVectorGet< int64_t>(i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); /* FALL THRU */
+                  case UFlatBufferValue::TYPE_VECTOR_INT3:   setInt64( vec.AsTypedOrFixedVectorGet< int64_t>(i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); /* FALL THRU */
+                  case UFlatBufferValue::TYPE_VECTOR_INT2:   setInt64( vec.AsTypedOrFixedVectorGet< int64_t>(i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); /* FALL THRU */
+                  case UFlatBufferValue::TYPE_VECTOR_INT:    setInt64( vec.AsTypedOrFixedVectorGet< int64_t>(i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); break;
+                  case UFlatBufferValue::TYPE_VECTOR_UINT4:  setUInt64(vec.AsTypedOrFixedVectorGet<uint64_t>(i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); /* FALL THRU */
+                  case UFlatBufferValue::TYPE_VECTOR_UINT3:  setUInt64(vec.AsTypedOrFixedVectorGet<uint64_t>(i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); /* FALL THRU */
+                  case UFlatBufferValue::TYPE_VECTOR_UINT2:  setUInt64(vec.AsTypedOrFixedVectorGet<uint64_t>(i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); /* FALL THRU */
+                  case UFlatBufferValue::TYPE_VECTOR_UINT:   setUInt64(vec.AsTypedOrFixedVectorGet<uint64_t>(i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); break;
+                  case UFlatBufferValue::TYPE_VECTOR_FLOAT4: setDouble(vec.AsTypedOrFixedVectorGet<double>(  i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); /* FALL THRU */
+                  case UFlatBufferValue::TYPE_VECTOR_FLOAT3: setDouble(vec.AsTypedOrFixedVectorGet<double>(  i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); /* FALL THRU */
+                  case UFlatBufferValue::TYPE_VECTOR_FLOAT2: setDouble(vec.AsTypedOrFixedVectorGet<double>(  i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival); /* FALL THRU */
+                  case UFlatBufferValue::TYPE_VECTOR_FLOAT:  setDouble(vec.AsTypedOrFixedVectorGet<double>(  i++)); sd[pos].tails = insertAfter(sd[pos].tails, o.ival);
+                  break;
+                  }
+               }
+            break;
+            }
+
+         U_INTERNAL_ASSERT_MAJOR(i, 0)
+
+         setArray();
+         }
+      break;
+
+      case UFlatBufferValue::TYPE_VECTOR_BOOL:
+         {
+         UFlatBuffer vec;
+
+         fb.AsTypedVector(vec);
+
+         uint32_t n = vec.GetSize();
+
+         if (n == 0) setArrayEmpty();
+         else
+            {
+            initStackParser(false);
+
+            for (uint32_t i = 0; i < n; ++i)
+               {
+               setBool(vec.AsTypedOrFixedVectorGet<bool>(i));
+
+               nextParser();
+               }
+
+            setArray();
+            }
+         }
+      break;
+
+      case UFlatBufferValue::TYPE_MAP:
+         {
+         UFlatBuffer map;
+
+         fb.AsMap(map);
+
+         uint32_t n = map.GetSize();
+
+         if (n == 0) setObjectEmpty();
+         else
+            {
+            UFlatBuffer keys, values, fbb;
+
+            map.AsMapGetKeys(keys);
+            map.AsMapGetValues(values);
+            
+            initStackParser(true);
+
+            for (uint32_t i = 0; i < n; ++i)
+               {
+               addStringParser(keys.AsTypedOrFixedVectorGet<UString>(i));
+
+               values.AsVectorGet(i, fbb);
+
+               fromFlatBufferToJSON(fbb);
+               }
+
+            setObject();
+            }
+         }
+      break;
+
+      default:
+         {
+         U_INTERNAL_ASSERT(false)
+         }
+      break;
+      }
+
+   if (pos != -1) nextParser();
+}
+
+void UValue::toFlatBuffer(UFlatBuffer& fb, UString& result) const
+{
+   U_TRACE(0, "UValue::toFlatBuffer(%p,%p)", &fb, &result)
+
+   U_INTERNAL_DUMP("size_output = %u UFlatBuffer::getBufferMax() = %u UFlatBuffer::getStackMax() = %u", size_output, UFlatBuffer::getBufferMax(), UFlatBuffer::getStackMax())
+
+   uint8_t* prev_stack;
+   uint8_t* prev_buffer;
+   uint8_t stack[64 * 1024];
+   uint32_t end, prev_stack_size, prev_buffer_size;
+   bool breset1 = (size_output   > UFlatBuffer::getBufferMax()),
+        breset2 = (sizeof(stack) > UFlatBuffer::getStackMax());
+
+   // buffer to serialize json
+
+   if (breset1 == false) pstringify = (char*)UFlatBuffer::getBuffer();
+   else
+      {
+      prev_buffer      = UFlatBuffer::getBuffer();
+      prev_buffer_size = UFlatBuffer::getBufferMax();
+
+      (void) result.reserve(U_max(size_output+100U,U_CAPACITY));
+
+      UFlatBuffer::setBuffer((uint8_t*)(pstringify = result.data()), result.capacity());
+      }
+
+   if (breset2)
+      {
+      U_INTERNAL_ASSERT_MINOR(size_output, sizeof(stack))
+
+      prev_stack      = UFlatBuffer::getStack();
+      prev_stack_size = UFlatBuffer::getStackMax();
+
+      UFlatBuffer::setStack(stack, sizeof(stack));
+      }
+
+   (pfb = &fb)->StartBuild();
+
+   toFlatBufferFromJSON();
+
+   end = fb.EndBuild();
+
+   if (breset1 == false) result = fb.getResult();
+   else
+      {
+      result.size_adjust(end);
+
+      UFlatBuffer::setBuffer(prev_buffer, prev_buffer_size);
+      }
+      
+   if (breset2) UFlatBuffer::setStack(prev_stack, prev_stack_size);
 }
 
 bool UValue::parse(const UString& document)
@@ -788,14 +1166,15 @@ bool UValue::parse(const UString& document)
 #endif
 
    double val;
+   uint8_t type;
+   int gexponent;
    const char* p;
    unsigned char c;
    UStringRep* rep;
    const char* start;
-   int gexponent, type;
    uint64_t integerPart;
    const char* s = document.data();
-   const char* end = s + (size = document.size());
+   const char* end = s + (size_output = document.size());
    uint32_t sz, significandDigit, decimalDigit, exponent;
    bool minus = false, colon = false, comma = false, separator = true;
 
@@ -816,7 +1195,7 @@ loop: while (u__isspace(*s)) ++s;
       goto *((char*)&&cdefault + dispatch_table[*start-'!']);
 
 case_dquote:
-      type = STRING_VALUE;
+      type = U_STRING_VALUE;
 
       if ((jsonParseFlags & CHECK_FOR_UTF) == 0)
          {
@@ -832,10 +1211,10 @@ dquote:
 
       if (c == '"') goto dquote_assign;
 
-           if (c > 0x7F) type = UTF_VALUE; // 00..7F
+           if (c > 0x7F) type = U_UTF_VALUE; // 00..7F
       else if (c == '\\')
          {
-         type = UTF_VALUE;
+         type = U_UTF_VALUE;
 
          switch ((c = *++s))
             {
@@ -878,13 +1257,13 @@ dquote_assign:
 
       if (sz)
          {
-         U_DUMP("type = (%d,%S)", type, getDataTypeDescription(type))
+         U_DUMP("type = (%u,%S)", type, getDataTypeDescription(type))
 
          if ((jsonParseFlags & STRING_COPY) == 0)
             {
             U_NEW(UStringRep, rep, UStringRep(start, sz));
 
-            o.ival = getJsonValue(type, rep);
+            setValue(type, rep);
             }
          else
             {
@@ -892,14 +1271,14 @@ dquote_assign:
 
             str.hold();
 
-            o.ival = getJsonValue(type, str.rep);
+            setValue(type, str.rep);
             }
          }
       else
          {
          UStringRep::string_rep_null->hold();
 
-         o.ival = getJsonValue(STRING_VALUE, UStringRep::string_rep_null);
+         setValue(U_STRING_VALUE, UStringRep::string_rep_null);
          }
 
       goto next;
@@ -912,7 +1291,7 @@ case_plus:
       goto case_number;
 
 case_comma:
-      U_INTERNAL_DUMP("comma: comma = %b separator = %b sd[%d].keys = 0x%x", comma, separator, pos, sd[pos].keys)
+      U_INTERNAL_DUMP("comma: comma = %b separator = %b sd[%d].keys = %#llx", comma, separator, pos, sd[pos].keys)
 
       if (comma     ||
           separator ||
@@ -987,7 +1366,7 @@ case_zero:
          {
 zero:    if (c == '.') goto case_number;
 
-         o.ival = getJsonValue(UINT_VALUE, U_NULLPTR);
+         o.ival = u_getValue(U_UINT_VALUE, U_NULLPTR);
 
          goto next;
          }
@@ -1082,21 +1461,21 @@ case_number:
 #     ifndef U_COVERITY_FALSE_POSITIVE // Control flow issues (MISSING_BREAK)
          switch (decimalDigit)
             {
-            case 15: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-15] - '0'); /* FALLTHRU */
-            case 14: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-14] - '0'); /* FALLTHRU */
-            case 13: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-13] - '0'); /* FALLTHRU */
-            case 12: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-12] - '0'); /* FALLTHRU */
-            case 11: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-11] - '0'); /* FALLTHRU */
-            case 10: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-10] - '0'); /* FALLTHRU */
-            case  9: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 9] - '0'); /* FALLTHRU */
-            case  8: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 8] - '0'); /* FALLTHRU */
-            case  7: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 7] - '0'); /* FALLTHRU */
-            case  6: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 6] - '0'); /* FALLTHRU */
-            case  5: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 5] - '0'); /* FALLTHRU */
-            case  4: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 4] - '0'); /* FALLTHRU */
-            case  3: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 3] - '0'); /* FALLTHRU */
-            case  2: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 2] - '0'); /* FALLTHRU */
-            case  1: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 1] - '0'); /* FALLTHRU */
+            case 15: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-15] - '0'); /* FALL THRU */
+            case 14: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-14] - '0'); /* FALL THRU */
+            case 13: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-13] - '0'); /* FALL THRU */
+            case 12: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-12] - '0'); /* FALL THRU */
+            case 11: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-11] - '0'); /* FALL THRU */
+            case 10: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit-10] - '0'); /* FALL THRU */
+            case  9: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 9] - '0'); /* FALL THRU */
+            case  8: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 8] - '0'); /* FALL THRU */
+            case  7: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 7] - '0'); /* FALL THRU */
+            case  6: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 6] - '0'); /* FALL THRU */
+            case  5: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 5] - '0'); /* FALL THRU */
+            case  4: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 4] - '0'); /* FALL THRU */
+            case  3: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 3] - '0'); /* FALL THRU */
+            case  2: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 2] - '0'); /* FALL THRU */
+            case  1: integerPart = (integerPart << 3) + (integerPart << 1) + (p[decimalDigit- 1] - '0'); /* FALL THRU */
             }
 #     endif
 
@@ -1164,37 +1543,30 @@ exp:     if (u__issign((c = *++s))) ++s;
 noreal:
       U_INTERNAL_ASSERT_DIFFERS(*start, '.')
 
+      if (integerPart > U_VALUE_PAYLOAD_MASK) // U_VALUE_PAYLOAD_MASK => 140737488355327 (15 digit) - UINT_MAX => 4294967295 (9 digit)
+         {
+         val = (double)integerPart;
+
+         goto mreal1;
+         }
+
       if (minus == false)
          {
-         if (integerPart > UINT_MAX) // UINT_MAX => 4294967295 (9 digit)
-            {
-            val = (double)integerPart;
+         setValue(U_UINT_VALUE, (void*)integerPart);
 
-            goto mreal1;
-            }
+         U_INTERNAL_DUMP("value(%.*S) = %llu", s-start, start, integerPart)
 
-         o.ival = getJsonValue(UINT_VALUE, (void*)(integerPart & 0x00000000FFFFFFFFULL));
-
-         U_INTERNAL_DUMP("value(%.*S) = %u", s-start, start, (uint32_t)integerPart)
-
-         U_INTERNAL_ASSERT_EQUALS((uint32_t)integerPart, ::strtoul(start, U_NULLPTR, 10))
+         U_INTERNAL_ASSERT_EQUALS(integerPart, ::strtoull(start, U_NULLPTR, 10))
          }
       else
          {
-         if (integerPart > 2147483648ULL) // INT_MIN => -2147483648 (9 digit)
-            {
-            val = (double)integerPart;
-
-            goto mreal1;
-            }
-
          minus = false;
 
-         o.ival = getJsonValue(INT_VALUE, (void*)(-integerPart & 0x00000000FFFFFFFFULL));
+         setValue(U_INT_VALUE, (void*)integerPart);
 
-         U_INTERNAL_DUMP("value(%.*S) = %d", s-(start-1), start-1, -(int32_t)integerPart)
+         U_INTERNAL_DUMP("value(%.*S) = %lld", s-(start-1), start-1, -(int64_t)integerPart)
 
-         U_INTERNAL_ASSERT_EQUALS(-(int32_t)integerPart, ::strtol(start-1, U_NULLPTR, 10))
+         U_INTERNAL_ASSERT_EQUALS(-(int64_t)integerPart, ::strtoll(start-1, U_NULLPTR, 10))
          }
 
       goto next;
@@ -1244,7 +1616,7 @@ mreal1:
       goto next;
 
 case_colon:
-      U_INTERNAL_DUMP("colon: comma = %b colon = %b separator = %b sd[%d].keys = 0x%x", comma, colon, separator, pos, sd[pos].keys)
+      U_INTERNAL_DUMP("colon: comma = %b colon = %b separator = %b sd[%d].keys = %#llx", comma, colon, separator, pos, sd[pos].keys)
 
       if (separator      ||
           colon == false ||
@@ -1263,13 +1635,7 @@ case_svector:
 
       if (*s != ']')
          {
-         ++pos;
-
-         U_INTERNAL_ASSERT_MINOR(pos, U_JSON_PARSE_STACK_SIZE)
-
-         sd[pos].keys  = 0;
-         sd[pos].tails = U_NULLPTR;
-         sd[pos].tags  = false;
+         initStackParser(false);
 
          comma     = false;
          separator = true;
@@ -1279,28 +1645,28 @@ case_svector:
 
       ++s;
 
-      o.ival = listToValue(ARRAY_VALUE, U_NULLPTR);
+      setArrayEmpty();
 
       goto next;
 
 case_evector:
-      U_INTERNAL_DUMP("evector: comma = %b separator = %b sd[%d].tags = %b", comma, separator, pos, sd[pos].tags)
+      U_INTERNAL_DUMP("evector: comma = %b separator = %b sd[%d].obj = %b", comma, separator, pos, sd[pos].obj)
 
       if (comma     ||
           pos == -1 ||
-          sd[pos].tags)
+          sd[pos].obj)
          {
          break;
          }
 
-      o.ival = listToValue(ARRAY_VALUE, sd[pos--].tails);
+      setArray();
 
       goto next;
 
 case_false:
       if (u_get_unalignedp32(s) == U_MULTICHAR_CONSTANT32('a','l','s','e'))
          {
-         o.ival = getJsonValue(FALSE_VALUE, U_NULLPTR);
+         setBool(false);
 
          s = start+U_CONSTANT_SIZE("false");
 
@@ -1312,7 +1678,7 @@ case_false:
 case_null:
       if (u_get_unalignedp32(start) == U_MULTICHAR_CONSTANT32('n','u','l','l'))
          {
-         o.ival = getJsonValue(NULL_VALUE, U_NULLPTR);
+         setNull();
 
          s = start+U_CONSTANT_SIZE("null");
 
@@ -1324,7 +1690,7 @@ case_null:
 case_true:
       if (u_get_unalignedp32(start) == U_MULTICHAR_CONSTANT32('t','r','u','e'))
          {
-         o.ival = getJsonValue(TRUE_VALUE, U_NULLPTR);
+         setBool(true);
 
          s = start+U_CONSTANT_SIZE("true");
 
@@ -1338,13 +1704,7 @@ case_sobject:
 
       if (*s != '}')
          {
-         ++pos;
-
-         U_INTERNAL_ASSERT_MINOR(pos, U_JSON_PARSE_STACK_SIZE)
-
-         sd[pos].keys  = 0;
-         sd[pos].tails = U_NULLPTR;
-         sd[pos].tags  = true;
+         initStackParser(true);
 
          comma     = false;
          separator = true;
@@ -1354,22 +1714,22 @@ case_sobject:
 
       ++s;
 
-      o.ival = listToValue(OBJECT_VALUE, U_NULLPTR);
+      setObjectEmpty();
 
       goto next;
 
 case_eobject:
-      U_INTERNAL_DUMP("eobject: comma = %b colon = %b separator = %b sd[%d].tags = %b sd[%d].tails = %p", comma, colon, separator, pos, sd[pos].tags, pos, sd[pos].tails)
+      U_INTERNAL_DUMP("eobject: comma = %b colon = %b separator = %b sd[%d].obj = %b sd[%d].tails = %p", comma, colon,  separator, pos, sd[pos].obj, pos, sd[pos].tails)
 
       if (comma        ||
           pos == -1    ||
           sd[pos].keys ||
-          sd[pos].tags == false)
+          sd[pos].obj == false)
          {
          break;
          }
 
-      o.ival = listToValue(OBJECT_VALUE, sd[pos--].tails);
+      setObject();
 
 next: U_INTERNAL_DUMP("next: comma = %b pos = %d colon = %b separator = %b s = %.10S", comma, pos, colon, separator, s)
 
@@ -1392,10 +1752,10 @@ next: U_INTERNAL_DUMP("next: comma = %b pos = %d colon = %b separator = %b s = %
       comma     =
       separator = false;
 
-      U_DUMP("sd[%d].tags = (%d,%S) sd[%d].tails = %p", pos, (sd[pos].tags ? OBJECT_VALUE : ARRAY_VALUE),
-                                      getDataTypeDescription((sd[pos].tags ? OBJECT_VALUE : ARRAY_VALUE)), pos, sd[pos].tails)
+      U_DUMP("sd[%u].obj = (%d,%S) sd[%u].tails = %p", pos, (sd[pos].obj ? U_OBJECT_VALUE : U_ARRAY_VALUE),
+                                     getDataTypeDescription((sd[pos].obj ? U_OBJECT_VALUE : U_ARRAY_VALUE)), pos, sd[pos].tails)
 
-      if (sd[pos].tags == false) sd[pos].tails = insertAfter(sd[pos].tails, o.ival);
+      if (sd[pos].obj == false) sd[pos].tails = insertAfter(sd[pos].tails, o.ival);
       else
          {
          if (colon) break;
@@ -1419,20 +1779,20 @@ next: U_INTERNAL_DUMP("next: comma = %b pos = %d colon = %b separator = %b s = %
       }
 
 cdefault:
-   U_INTERNAL_DUMP("cdefault: pos = %d sd[0].tags = %b sd[0].tails = %p sd[0].keys = 0x%x", pos, sd[0].tags, sd[0].tails, sd[0].keys)
+   U_INTERNAL_DUMP("cdefault: pos = %d sd[0].obj = %b sd[0].tails = %p sd[0].keys = %#llx", pos, sd[0].obj, sd[0].tails, sd[0].keys)
 
    if (pos >= 0)
       {
-      if (sd[0].tags == false) value.ival = (sd[0].tails ? listToValue(ARRAY_VALUE, sd[0].tails) : o.ival);
+      if (sd[0].obj == false) value.ival = (sd[0].tails ? listToValue(U_ARRAY_VALUE, sd[0].tails) : o.ival);
       else
          {
-         if (sd[0].tails) value.ival = listToValue(OBJECT_VALUE, sd[0].tails);
+         if (sd[0].tails) value.ival = listToValue(U_OBJECT_VALUE, sd[0].tails);
          else
             {
             if (sd[0].keys &&
                 isStringOrUTF(sd[0].keys))
                {
-               rep = (UStringRep*)getPayload(sd[0].keys);
+               rep = (UStringRep*)u_getPayload(sd[0].keys);
 
                U_INTERNAL_DUMP("rep(%p) = %V", rep, rep)
 
@@ -1449,21 +1809,21 @@ void UValue::nextParser()
 {
    U_TRACE_NO_PARAM(0, "UValue::nextParser()")
 
-   U_INTERNAL_DUMP("UValue::pos = %d", UValue::pos)
+   U_INTERNAL_DUMP("pos = %d", pos)
 
-   U_INTERNAL_ASSERT_DIFFERS(UValue::pos, -1)
+   U_INTERNAL_ASSERT_DIFFERS(pos, -1)
 
-   U_DUMP("sd[%d].tags = (%d,%S) sd[%d].tails = %p sd[%d].keys = 0x%x", pos, (sd[pos].tags ? OBJECT_VALUE : ARRAY_VALUE),
-                                   getDataTypeDescription((sd[pos].tags ? OBJECT_VALUE : ARRAY_VALUE)), pos, sd[pos].tails, pos, sd[pos].keys)
+   U_DUMP("sd[%u].obj = (%d,%S) sd[%u].tails = %p sd[%u].keys = %#llx", pos, (sd[pos].obj ? U_OBJECT_VALUE : U_ARRAY_VALUE),
+                                   getDataTypeDescription((sd[pos].obj ? U_OBJECT_VALUE : U_ARRAY_VALUE)), pos, sd[pos].tails, pos, sd[pos].keys)
 
-   if (sd[pos].tags == false) sd[pos].tails = insertAfter(sd[pos].tails, o.ival);
+   if (sd[pos].obj == false) sd[pos].tails = insertAfter(sd[pos].tails, o.ival);
    else
       {
       if (sd[pos].keys == 0)
          {
          sd[pos].keys = o.ival;
 
-         U_INTERNAL_DUMP("sd[%d].keys = %V",  pos, getPayload(sd[pos].keys))
+         U_INTERNAL_DUMP("sd[%u].keys = %V",  pos, u_getPayload(sd[pos].keys))
 
          return;
          }
@@ -1498,7 +1858,7 @@ void UValue::nextParser()
 //
 // would return:
 //    value -> "one"
-//    dataType = STRING_VALUE;
+//    dataType = U_STRING_VALUE;
 //
 // The query string simply defines the route to the required data item as an arbitary list of object or array specifiers:
 //    object element = "{'keyname'"
@@ -1510,25 +1870,25 @@ void UValue::nextParser()
 //
 // in this case would return:
 //    value -> "[ "one", 2, {"descripton":"element 3"}, null ]"
-//    dataType = ARRAY_VALUE;
+//    dataType = U_ARRAY_VALUE;
 //
 // allowing jread() to be called again on the array:
 //    dataType = jread(value, U_STRING_FROM_CONSTANT("[3"), value); // get 4th element - the null value
 //
 // in this case would return:
 //    value -> ""
-//    dataType = NULL_VALUE;
+//    dataType = U_NULL_VALUE;
 //
 // Note that jread() never modifies the source JSON and does not allocate any memory. i.e. elements are assigned as
 // substring of the source json string
 // =======================================================================================================================
 
-#define U_JR_EOL     (NULL_VALUE+1) // 10 end of input string (ptr at '\0')
-#define U_JR_COLON   (NULL_VALUE+2) // 11 ":"
-#define U_JR_COMMA   (NULL_VALUE+3) // 12 ","
-#define U_JR_EARRAY  (NULL_VALUE+4) // 13 "]"
-#define U_JR_QPARAM  (NULL_VALUE+5) // 14 "*" query string parameter
-#define U_JR_EOBJECT (NULL_VALUE+6) // 15 "}"
+#define U_JR_EOL     (U_COMPACT_VALUE+1) // 10 end of input string (ptr at '\0')
+#define U_JR_COLON   (U_COMPACT_VALUE+2) // 11 ":"
+#define U_JR_COMMA   (U_COMPACT_VALUE+3) // 12 ","
+#define U_JR_EARRAY  (U_COMPACT_VALUE+4) // 13 "]"
+#define U_JR_QPARAM  (U_COMPACT_VALUE+5) // 14 "*" query string parameter
+#define U_JR_EOBJECT (U_COMPACT_VALUE+6) // 15 "}"
 
 int      UValue::jread_error;
 uint32_t UValue::jread_pos;
@@ -1555,21 +1915,21 @@ U_NO_EXPORT int UValue::jreadFindToken(UTokenizer& tok)
       case '6':
       case '7':
       case '8':
-      case '9': U_RETURN(REAL_VALUE);
+      case '9': U_RETURN(U_REAL_VALUE);
 
-      case 't': U_RETURN( TRUE_VALUE);
-      case 'f': U_RETURN(FALSE_VALUE);
+      case 't': U_RETURN( U_TRUE_VALUE);
+      case 'f': U_RETURN(U_FALSE_VALUE);
 
-      case 'n': U_RETURN(NULL_VALUE);
+      case 'n': U_RETURN(U_NULL_VALUE);
 
-      case '[': U_RETURN(ARRAY_VALUE);
+      case '[': U_RETURN(U_ARRAY_VALUE);
       case ']': U_RETURN(U_JR_EARRAY);
 
-      case '{': U_RETURN(OBJECT_VALUE);
+      case '{': U_RETURN(U_OBJECT_VALUE);
       case '}': U_RETURN(U_JR_EOBJECT);
 
       case '"':
-      case '\'': U_RETURN(STRING_VALUE);
+      case '\'': U_RETURN(U_STRING_VALUE);
 
       case ':': U_RETURN(U_JR_COLON);
       case ',': U_RETURN(U_JR_COMMA);
@@ -1585,13 +1945,13 @@ U_NO_EXPORT int UValue::jread_skip(UTokenizer& tok)
 
    tok.skipSpaces();
 
-   if (tok.atEnd()) U_RETURN(NULL_VALUE);
+   if (tok.atEnd()) U_RETURN(U_NULL_VALUE);
 
    switch (tok.next())
       {
-      case 'n': (void) tok.skipToken(U_CONSTANT_TO_PARAM("ull"));  U_RETURN( NULL_VALUE);
-      case 't': (void) tok.skipToken(U_CONSTANT_TO_PARAM("rue"));  U_RETURN( TRUE_VALUE);
-      case 'f': (void) tok.skipToken(U_CONSTANT_TO_PARAM("alse")); U_RETURN(FALSE_VALUE);
+      case 'n': (void) tok.skipToken(U_CONSTANT_TO_PARAM("ull"));  U_RETURN( U_NULL_VALUE);
+      case 't': (void) tok.skipToken(U_CONSTANT_TO_PARAM("rue"));  U_RETURN( U_TRUE_VALUE);
+      case 'f': (void) tok.skipToken(U_CONSTANT_TO_PARAM("alse")); U_RETURN(U_FALSE_VALUE);
 
       case '+':
       case '-':
@@ -1608,7 +1968,7 @@ U_NO_EXPORT int UValue::jread_skip(UTokenizer& tok)
          {
          tok.skipNumber();
 
-         U_RETURN(REAL_VALUE);
+         U_RETURN(U_REAL_VALUE);
          }
 
       case '"':
@@ -1621,7 +1981,7 @@ U_NO_EXPORT int UValue::jread_skip(UTokenizer& tok)
             {
             tok.setPointer(last+1);
 
-            U_RETURN(STRING_VALUE);
+            U_RETURN(U_STRING_VALUE);
             }
          }
       break;
@@ -1642,7 +2002,7 @@ U_NO_EXPORT int UValue::jread_skip(UTokenizer& tok)
             if (jread_skip(tok) == -1) U_RETURN(-1);
             }
 
-         U_RETURN(ARRAY_VALUE);
+         U_RETURN(U_ARRAY_VALUE);
          }
 
       case '{':
@@ -1666,7 +2026,7 @@ U_NO_EXPORT int UValue::jread_skip(UTokenizer& tok)
 
             if (tok.atEnd()       || 
                 tok.next() != ':' ||
-                dataType != STRING_VALUE)
+                dataType != U_STRING_VALUE)
                {
                U_RETURN(-1);
                }
@@ -1674,7 +2034,7 @@ U_NO_EXPORT int UValue::jread_skip(UTokenizer& tok)
             if (jread_skip(tok) == -1) U_RETURN(-1);
             }
 
-         U_RETURN(OBJECT_VALUE);
+         U_RETURN(U_OBJECT_VALUE);
          }
       }
 
@@ -1721,7 +2081,7 @@ U_NO_EXPORT UString UValue::jread_object(UTokenizer& tok)
       dataType = jread_skip(++tok);
 
       if (dataType == -1 ||
-          dataType != STRING_VALUE)
+          dataType != U_STRING_VALUE)
          {
          jread_error = 3; // Expected "key"
 
@@ -1876,7 +2236,7 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
          U_RETURN(-1);
          }
 
-      case STRING_VALUE: // "string" 
+      case U_STRING_VALUE: // "string" 
          {
          jread_elements = 1;
 
@@ -1884,10 +2244,10 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
          }
       break;
 
-      case  NULL_VALUE: // null
-      case  REAL_VALUE: // number
-      case  TRUE_VALUE: // true
-      case FALSE_VALUE: // false
+      case  U_NULL_VALUE: // null
+      case  U_REAL_VALUE: // number
+      case  U_TRUE_VALUE: // true
+      case U_FALSE_VALUE: // false
          {
          const char* ptr =  start = tok1.getPointer();
                char    c = *start;
@@ -1904,11 +2264,11 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
          }
       break;
 
-      case OBJECT_VALUE: // "{"
+      case U_OBJECT_VALUE: // "{"
          {
          if (qTok == U_JR_EOL)
             {
-            jTok   = OBJECT_VALUE;
+            jTok   = U_OBJECT_VALUE;
             result = jread_object(tok1); 
 
             goto end;
@@ -1918,13 +2278,13 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
 
          U_DUMP("qTok = (%d,%S)", qTok, getDataTypeDescription(qTok))
 
-         if (qTok != STRING_VALUE)
+         if (qTok != U_STRING_VALUE)
             {
             index = 0;
 
             switch (qTok)
                {
-               case REAL_VALUE: // index value
+               case U_REAL_VALUE: // index value
                   {
                   start = tok2.getPointer();
 
@@ -1934,7 +2294,7 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
 
                   U_INTERNAL_DUMP("index = %u", index)
 
-                  U_INTERNAL_ASSERT_EQUALS(index, ::strtol(start, U_NULLPTR, 10))
+                  U_INTERNAL_ASSERT_EQUALS(index, (uint32_t)::strtol(start, U_NULLPTR, 10))
                   }
                break;
 
@@ -1948,7 +2308,7 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
                   }
                }
 
-            jTok   = OBJECT_VALUE;
+            jTok   = U_OBJECT_VALUE;
             result = jread_object(tok1, index); 
 
             goto end;
@@ -2023,7 +2383,7 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
          }
       break;
 
-      case ARRAY_VALUE: // "[NUMBER" or "[*"
+      case U_ARRAY_VALUE:  // "[NUMBER" or "[*"
          {
          // read index, skip values 'til index
 
@@ -2060,7 +2420,7 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
                   }
                }
 
-            jTok   = ARRAY_VALUE;
+            jTok   = U_ARRAY_VALUE;
             result = tok1.substr(start);
 
             goto end;
@@ -2078,7 +2438,7 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
 
             index = (queryParams ? *queryParams++ : 0); // substitute parameter
             }
-         else if (qTok == REAL_VALUE)
+         else if (qTok == U_REAL_VALUE)
             {
             // get array index   
 
@@ -2088,7 +2448,7 @@ int UValue::jread(const UString& json, const UString& query, UString& result, ui
 
             U_INTERNAL_DUMP("index = %u", index)
 
-            U_INTERNAL_ASSERT_EQUALS(index, ::strtol(start, U_NULLPTR, 10))
+            U_INTERNAL_ASSERT_EQUALS(index, (uint32_t)::strtol(start, U_NULLPTR, 10))
             }
 
          count = 0;
@@ -2169,64 +2529,52 @@ bool UValue::jfind(const UString& json, const char* query, uint32_t query_len, U
    U_TRACE(0, "UValue::jfind(%V,%.*S,%u,%p)", json.rep, query_len, query, query_len, &result)
 
    U_ASSERT(result.empty())
+   U_INTERNAL_ASSERT(u_is_quoted(query, query_len))
 
-   uint32_t pos;
+   uint32_t idx = json.find(query, 0, query_len);
 
-   if (u_is_quoted(query, query_len)) pos = json.find(query, 0, query_len);
-   else
+   if (idx == U_NOT_FOUND) U_RETURN(false);
+
+   idx += query_len;
+
+   UTokenizer tok(json.substr(idx));
+
+   int sTok = jreadFindToken(tok);
+
+   U_DUMP("sTok = (%d,%S)", sTok, getDataTypeDescription(sTok))
+
+   if ( sTok != U_JR_EOL   &&
+       (sTok == U_JR_COMMA ||
+        sTok == U_JR_COLON))
       {
-      uint32_t len = query_len;
-
-      UString quoted((query_len += 2));
-
-      quoted.snprintf(U_CONSTANT_TO_PARAM("\"%.*s\""), len, query);
-
-      pos = json.find(quoted);
+      ++tok;
       }
 
-   U_INTERNAL_DUMP("pos = %d", pos)
+   tok.skipSpaces();
 
-   if (pos != U_NOT_FOUND)
+   const char* start = tok.getPointer();
+
+   if (jread_skip(tok) != -1)
       {
-      pos += query_len;
+      const char* end = tok.getPointer();
 
-      UTokenizer tok(json.substr(pos));
-
-      int sTok = jreadFindToken(tok);
-
-      U_DUMP("sTok = (%d,%S)", sTok, getDataTypeDescription(sTok))
-
-      if ( sTok != U_JR_EOL   &&
-          (sTok == U_JR_COMMA ||
-           sTok == U_JR_COLON))
+      if (u__isquote(*start))
          {
-         ++tok;
+         ++start;
+         --end;
+
+         U_INTERNAL_ASSERT(u__isquote(*end))
+         }
+      else if (u__isquote(*end)) 
+         {
+         U_RETURN(false);
          }
 
-      tok.skipSpaces();
+      U_INTERNAL_ASSERT_MAJOR(end, start)
 
-      const char* start = tok.getPointer();
+      (void) result.assign(start, end-start);
 
-      if (jread_skip(tok) != -1)
-         {
-         const char* end = tok.getPointer();
-
-         if (u__isquote(*start))
-            {
-            ++start;
-            --end;
-
-            U_INTERNAL_ASSERT(u__isquote(*end))
-            }
-         else if (u__isquote(*end)) 
-            {
-            U_RETURN(false);
-            }
-
-         (void) result.assign(start, end-start);
-
-         U_RETURN(true);
-         }
+      U_RETURN(true);
       }
 
    U_RETURN(false);
@@ -2248,8 +2596,8 @@ int UValue::jreadArrayStep(const UString& jarray, UString& result)
 
    switch (jTok)
       {
-      case U_JR_COMMA:  // element separator
-      case ARRAY_VALUE: // start of array
+      case U_JR_COMMA:    // element separator
+      case U_ARRAY_VALUE: // start of array
          {
          ++tok;
 
@@ -2294,9 +2642,9 @@ const char* UValue::getJReadErrorDescription()
    U_RETURN(descr);
 }
 
-const char* UValue::getDataTypeDescription(int type)
+const char* UValue::getDataTypeDescription(uint8_t type)
 {
-   U_TRACE(0, "UValue::getDataTypeDescription(%d)", type)
+   U_TRACE(0, "UValue::getDataTypeDescription(%u)", type)
 
    struct data_type_info {
       int value;        // The numeric value
@@ -2304,16 +2652,17 @@ const char* UValue::getDataTypeDescription(int type)
    };
 
    static const struct data_type_info data_type_table[] = {
-      U_ENTRY(REAL_VALUE),
-      U_ENTRY(INT_VALUE),
-      U_ENTRY(UINT_VALUE),
-      U_ENTRY(TRUE_VALUE),
-      U_ENTRY(FALSE_VALUE),
-      U_ENTRY(STRING_VALUE),
-      U_ENTRY(UTF_VALUE),
-      U_ENTRY(ARRAY_VALUE),
-      U_ENTRY(OBJECT_VALUE),
-      U_ENTRY(NULL_VALUE),
+      U_ENTRY(U_REAL_VALUE),
+      U_ENTRY(U_INT_VALUE),
+      U_ENTRY(U_UINT_VALUE),
+      U_ENTRY(U_TRUE_VALUE),
+      U_ENTRY(U_FALSE_VALUE),
+      U_ENTRY(U_STRING_VALUE),
+      U_ENTRY(U_UTF_VALUE),
+      U_ENTRY(U_ARRAY_VALUE),
+      U_ENTRY(U_OBJECT_VALUE),
+      U_ENTRY(U_NULL_VALUE),
+      U_ENTRY(U_COMPACT_VALUE),
       U_ENTRY(U_JR_EOL),
       U_ENTRY(U_JR_COLON),
       U_ENTRY(U_JR_COMMA),
@@ -2322,7 +2671,7 @@ const char* UValue::getDataTypeDescription(int type)
       U_ENTRY(U_JR_EOBJECT)
    };
 
-   const char* descr = (type >= 0 && type < (int)U_NUM_ELEMENTS(data_type_table) ? data_type_table[type].name : "Data type unknown");
+   const char* descr = (type < (int)U_NUM_ELEMENTS(data_type_table) ? data_type_table[type].name : "Data type unknown");
 
    U_RETURN(descr);
 }

@@ -12,11 +12,15 @@ U_EXPORT main (int argc, char* argv[], char* env[])
    u_init_ulib_hostname();
    u_init_ulib_username();
 
-   ULog y(U_STRING_FROM_CONSTANT("$PWD/test_log.log"), 1024, "tmp");
+   ULog y(U_STRING_FROM_CONSTANT("$PWD/test_log.log"), 1024);
+
+#ifdef USE_LIBZ
+   y.setLogRotate("tmp");
+#endif
 
    y.setPrefix(U_CONSTANT_TO_PARAM(U_SERVER_LOG_PREFIX));
 
-   uint32_t i, n = (argc > 1 ? atoi(argv[1]) : 10);
+   uint32_t i, n = (argc > 1 ? u_atoi(argv[1]) : 10);
 
    for (i = 0; i < n; ++i)
       {

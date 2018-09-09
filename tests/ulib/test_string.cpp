@@ -12,10 +12,13 @@
 #endif
 
 #ifdef U_STDCPP_ENABLE
-#undef min
+#  undef min
 using std::min;
-#include <fstream>
-#include <iomanip>
+#  include <fstream>
+#  include <iomanip>
+#  if defined(HAVE_CXX11)
+#  include <unordered_map>
+#  endif
 #endif
 
 #define TEST_MEMMOVE
@@ -219,12 +222,12 @@ static void test_capacity_01()
    U_ASSERT( sz01 > 0 )
 
    sz01 = str01.size() + 5;
-   str01.resize(sz01);
+   str01.resize(sz01, '\0');
    sz02 = str01.size();
    U_ASSERT( sz01 == sz02 )
 
    sz01 = str01.size() - 5;
-   str01.resize(sz01);
+   str01.resize(sz01, '\0');
    sz02 = str01.size();
    U_ASSERT( sz01 == sz02 )
 
@@ -248,12 +251,12 @@ static void test_capacity_01()
    U_ASSERT( sz03 > 0 )
 
    sz03 = str02.size() + 5;
-   str02.resize(sz03);
+   str02.resize(sz03, '\0');
    sz04 = str02.size();
    U_ASSERT( sz03 == sz04 )
 
    sz03 = str02.size() - 5;
-   str02.resize(sz03);
+   str02.resize(sz03, '\0');
    sz04 = str02.size();
    U_ASSERT( sz03 == sz04 )
 
@@ -1494,16 +1497,24 @@ U_EXPORT main(int argc, char* argv[])
 
    U_TRACE(5, "main(%d)", argc)
 
-   UCrono crono;
-   UString x(100U), y = U_STRING_FROM_CONSTANT("0.0000001"), z, z1, value = U_STRING_FROM_CONSTANT("0.0");
+#if defined(U_STDCPP_ENABLE) && defined(HAVE_CXX11)
+   std::unordered_map<UString, uint64_t> arounds;
+#endif
 
-   UString new_value(U_CAPACITY, U_CONSTANT_TO_PARAM("%.*s; %v"), U_STRING_TO_TRACE(y), value.rep);
+   const char* ptr = ".banner.swpx" + U_CONSTANT_SIZE(".banner.swpx") - sizeof(".swp");
 
-   value = new_value;
+   U_INTERNAL_DUMP("u_isSuffixSwap(%S)", ptr)
 
-   U_INTERNAL_DUMP("value(%u): = %.*S", value.size(), U_STRING_TO_TRACE(value))
+   U_INTERNAL_ASSERT(u_isSuffixSwap(ptr))
 
-   U_ASSERT( value == U_STRING_FROM_CONSTANT("0.0000001; 0.0") )
+   /*
+   double val1 = U_STRING_FROM_CONSTANT("0").strtod();
+   u__printf(1, U_CONSTANT_TO_PARAM("0 = %lf %g"), val1, val1);
+   UString data = U_STRING_FROM_CONSTANT("0$&$&$&$&$&$&$&$&$&$&fileName");
+   UVector<UString> vec(data, "$&$&$");
+   for (auto part : vec) cout << "part = " << part << '\n';
+   exit(0);
+   */
 
    U_ASSERT( U_STRING_FROM_CONSTANT("0.0").strtod() == 0.0 )
    U_ASSERT( U_STRING_FROM_CONSTANT("1.0").strtod() == 1.0 )
@@ -1511,6 +1522,7 @@ U_EXPORT main(int argc, char* argv[])
    U_ASSERT( U_STRING_FROM_CONSTANT("-0.0").strtod() == -0.0 )
    U_ASSERT( U_STRING_FROM_CONSTANT("1.89").strtod() == 1.89 )
    U_ASSERT( U_STRING_FROM_CONSTANT("1e30").strtod() == 1e30 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("1000").strtod() == 1000.0 )
    U_ASSERT( U_STRING_FROM_CONSTANT("1.2345").strtod() == 1.2345 )
    U_ASSERT( U_STRING_FROM_CONSTANT("5e-324").strtod() == 5e-324 ) // Min subnormal positive double
    U_ASSERT( U_STRING_FROM_CONSTANT("-1E-10").strtod() == -1e-10 )
@@ -1536,7 +1548,6 @@ U_EXPORT main(int argc, char* argv[])
    U_ASSERT( U_STRING_FROM_CONSTANT("45913141877270640000.0").strtod() == 4.5913141877270643e+19 )
    U_ASSERT( U_STRING_FROM_CONSTANT("-9223372036854775809").strtod() == -9.223372036854775809e+18 )
    U_ASSERT( U_STRING_FROM_CONSTANT("2.2250738585072014e-308").strtod() == 2.2250738585072014e-308 ) // Min normal positive double
-   U_ASSERT( U_STRING_FROM_CONSTANT("3.08984926168550152811E-32").strtod() == 3.08984926168550152811E-32 )
    U_ASSERT( U_STRING_FROM_CONSTANT("10141204801825834086073718800384").strtod() == 1.0141204801825834e+31 )
    U_ASSERT( U_STRING_FROM_CONSTANT("10141204801825835211973625643008").strtod() == 1.0141204801825835e+31 )
    U_ASSERT( U_STRING_FROM_CONSTANT("10141204801825834649023672221696").strtod() == 1.0141204801825835e+31 )
@@ -1555,8 +1566,12 @@ U_EXPORT main(int argc, char* argv[])
    U_ASSERT( U_STRING_FROM_CONSTANT("1.00000000000000011102230246251565404236316680908203126").strtod() == 1.0000000000000002 )
    U_ASSERT( U_STRING_FROM_CONSTANT("0.999999999999999944488848768742172978818416595458984374").strtod() == 0.99999999999999989 )
 #endif
+#ifndef __INTEL_COMPILER
+   U_ASSERT( U_STRING_FROM_CONSTANT("3.08984926168550152811E-32").strtod() == 3.08984926168550152811E-32 )
+#endif
 
    int i;
+   UString x(100U), y, z;
 
    for (i = -310; i < 310; ++i)
       {
@@ -1630,17 +1645,34 @@ U_EXPORT main(int argc, char* argv[])
    U_ASSERT( y == U_STRING_FROM_CONSTANT("10.30.1.0/24 10.1.0.1/16") )
 #endif
 
+   UCrono crono;
+   UString z1, value = U_STRING_FROM_CONSTANT("0.0");
+
+   y = U_STRING_FROM_CONSTANT("0.0000001");
+
+   UString new_value(U_CAPACITY, U_CONSTANT_TO_PARAM("%.*s; %v"), U_STRING_TO_TRACE(y), value.rep);
+
+   value = new_value;
+
+   U_INTERNAL_DUMP("value(%u): = %.*S", value.size(), U_STRING_TO_TRACE(value))
+
+   U_ASSERT( value == U_STRING_FROM_CONSTANT("0.0000001; 0.0") )
+
+   bool ok = u_isUTF8((const unsigned char*)U_CONSTANT_TO_PARAM("..M-^X@M-/..M-^X@1M-/..\xC3\xBC\x88\x01\x0BM-^X@M-/..M-^X@M-/..M-^X@M-/../winnt/system32/cmd.exe"));
+
+   U_INTERNAL_ASSERT_EQUALS(ok, false)
+
    UString buffer(U_CAPACITY), encoded(U_CAPACITY);
 
    z1 = UStringExt::prepareForEnvironmentVar(U_STRING_FROM_CONSTANT("MasqueradeDevice=eth0 'AuthServiceAddr=http://wifi-aaa2.comune.fi.it' FullPrivateNetwork=172.16.0.0/12 "
                                              "'LocalNetwork=172.16.13.0/24 172.17.13.0/24' 'InternalDevice=br-lan br-wds' 'ExternalDevice=eth0 tun0 tun2'"));
 
-   bool ok = ( z1 == U_STRING_FROM_CONSTANT("MasqueradeDevice=eth0\n"
-                                            "'AuthServiceAddr=http://wifi-aaa2.comune.fi.it'\n"
-                                            "FullPrivateNetwork=172.16.0.0/12\n"
-                                            "'LocalNetwork=172.16.13.0/24 172.17.13.0/24'\n"
-                                            "'InternalDevice=br-lan br-wds'\n"
-                                            "'ExternalDevice=eth0 tun0 tun2'\n") );
+   ok = ( z1 == U_STRING_FROM_CONSTANT("MasqueradeDevice=eth0\n"
+                                       "'AuthServiceAddr=http://wifi-aaa2.comune.fi.it'\n"
+                                       "FullPrivateNetwork=172.16.0.0/12\n"
+                                       "'LocalNetwork=172.16.13.0/24 172.17.13.0/24'\n"
+                                       "'InternalDevice=br-lan br-wds'\n"
+                                       "'ExternalDevice=eth0 tun0 tun2'\n") );
 
    U_INTERNAL_ASSERT( ok )
 
@@ -1811,7 +1843,7 @@ U_EXPORT main(int argc, char* argv[])
 
    vec.clear();
 
-   n = (argc > 1 ? atoi(argv[1]) : 1);
+   n = (argc > 1 ? u_atoi(argv[1]) : 1);
 
    crono.start();
 
@@ -1935,6 +1967,60 @@ U_EXPORT main(int argc, char* argv[])
 
    U_ASSERT( z == "############################################################################################################################ellllo")
 
+   y = U_STRING_FROM_CONSTANT(" uno due tre quattro cinque \n"
+                              " uno due tre quattro cinque \n"
+                              " uno due tre quattro cinque \n"
+                              " uno due tre quattro cinque \n"
+                              " uno due tre quattro cinque \n");
+
+   z = UStringExt::substitute(y, U_CONSTANT_TO_PARAM("uno"), U_CONSTANT_TO_PARAM("primo"));
+
+   U_ASSERT(z == " primo due tre quattro cinque \n"
+                 " primo due tre quattro cinque \n"
+                 " primo due tre quattro cinque \n"
+                 " primo due tre quattro cinque \n"
+                 " primo due tre quattro cinque \n")
+
+   z = U_STRING_FROM_CONSTANT("uno primo due secondo tre terzo quattro quarto cinque quinto");
+
+   vec.clear();
+
+   (void) vec.split(z);
+
+   y = UStringExt::substitute(y, vec);
+
+   vec.clear();
+
+   U_ASSERT(y == " primo secondo terzo quarto quinto \n"
+                 " primo secondo terzo quarto quinto \n"
+                 " primo secondo terzo quarto quinto \n"
+                 " primo secondo terzo quarto quinto \n"
+                 " primo secondo terzo quarto quinto \n")
+
+   z = U_STRING_FROM_CONSTANT("5 Bob Apples");
+
+   (void) vec.split(z);
+
+   y = UStringExt::substituteIds(U_CONSTANT_TO_PARAM("$1 purchased $0 $2. Thanks $1!"), vec);
+
+   vec.clear();
+
+   U_ASSERT_EQUALS(y, "Bob purchased 5 Apples. Thanks Bob!")
+
+   z = U_STRING_FROM_CONSTANT("0 1 2 3 4 5 6 7 8 9 5 Bob Apples");
+
+   (void) vec.split(z);
+
+   y = UStringExt::substituteIds(U_CONSTANT_TO_PARAM("$11 purchased $10 $12. Thanks $11!"), vec);
+
+   vec.clear();
+
+   U_ASSERT_EQUALS(y, "Bob purchased 5 Apples. Thanks Bob!")
+
+   y = UStringExt::eraseIds(U_CONSTANT_TO_PARAM("$11 purchased $10 $12. Thanks $11!"));
+
+   U_ASSERT_EQUALS(y, " purchased  . Thanks !")
+
    y = U_STRING_FROM_CONSTANT("Hello\n\n");
 
    z = UStringExt::dos2unix(y, true);
@@ -1961,9 +2047,9 @@ U_EXPORT main(int argc, char* argv[])
    U_ASSERT( UStringExt::dirname(z)  == U_STRING_FROM_CONSTANT("/dir") )
    U_ASSERT( UStringExt::basename(z) == U_STRING_FROM_CONSTANT("base.suffix") )
 
-   const char* ptr = u_getsuffix(U_CONSTANT_TO_PARAM("/dir/base.suffix/www"));
+   ptr = u_getsuffix(U_CONSTANT_TO_PARAM("/dir/base.suffix/www"));
 
-   U_INTERNAL_ASSERT_EQUALS( ptr, 0 )
+   U_INTERNAL_ASSERT_EQUALS( ptr, U_NULLPTR )
 
    ptr = u_getsuffix(U_CONSTANT_TO_PARAM("/dir/base.suffix"));
 
@@ -2047,47 +2133,17 @@ U_EXPORT main(int argc, char* argv[])
    */
 
 #ifdef USE_LIBZ
-   #define TEXT3 \
-   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n"
+   z = U_STRING_FROM_CONSTANT("########################################################################################################################"
+                              "########################################################################################################################"
+                              "########################################################################################################################");
 
-   z = U_STRING_FROM_CONSTANT(TEXT3);
-
-   x = UStringExt::deflate(z, 1);
+   x = UStringExt::deflate(z);
 
    y = UStringExt::gunzip(x);
 
    U_ASSERT( z == y )
 
-   x = UStringExt::deflate(z, 2);
+   x = UStringExt::deflate(z, Z_BEST_COMPRESSION);
 
    y = UStringExt::gunzip(x);
 
@@ -2241,8 +2297,6 @@ U_EXPORT main(int argc, char* argv[])
    y = z = UFile::contentOf(U_STRING_FROM_CONSTANT("inp/livevalidation_standalone.compressed.js"));
 
    z = UStringExt::minifyCssJs(z);
-
-   (void) UFile::writeToTmp(U_STRING_TO_PARAM(z), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("livevalidation_standalone.compressed.js"), 0);
 
    U_ASSERT( z == y )
    */

@@ -36,7 +36,7 @@ public:
 
    UTimer()
       {
-      U_TRACE_REGISTER_OBJECT(0, UTimer, "", 0)
+      U_TRACE_CTOR(0, UTimer, "")
 
       next  = U_NULLPTR;
       alarm = U_NULLPTR;
@@ -44,7 +44,7 @@ public:
 
    ~UTimer()
       {
-      U_TRACE_UNREGISTER_OBJECT(0, UTimer)
+      U_TRACE_DTOR(0, UTimer)
       }
 
    // SERVICES
@@ -62,6 +62,9 @@ public:
       {
       U_TRACE_NO_PARAM(0, "UTimer::isAlarm()")
 
+         U_INTERNAL_DUMP("UInterrupt::timerval.it_value = { %ld %6ld } UInterrupt::timerval.it_interval = { %ld %6ld }", UInterrupt::timerval.it_value.tv_sec,
+                          UInterrupt::timerval.it_value.tv_usec,       UInterrupt::timerval.it_interval.tv_sec,          UInterrupt::timerval.it_interval.tv_usec)
+
       if (UInterrupt::timerval.it_value.tv_sec  != 0 ||
           UInterrupt::timerval.it_value.tv_usec != 0)
          {
@@ -71,8 +74,18 @@ public:
       U_RETURN(false);
       }
 
+   static void init(Type _mode) // initialize the timer
+      {
+      U_TRACE(0, "UTimer::init(%d)", _mode)
+
+      if ((mode = _mode) != NOSIGNAL)
+         {
+              if (_mode ==  SYNC) UInterrupt::setHandlerForSignal(SIGALRM, (sighandler_t)UTimer::handlerAlarm);
+         else if (_mode == ASYNC) UInterrupt::insert(             SIGALRM, (sighandler_t)UTimer::handlerAlarm); // async signal
+         }
+      }
+
    static void clear();                    // cancel all timers and free storage, usually in preparation for exitting
-   static void init(Type mode);            // initialize the timer package
    static void insert(UEventTime* palarm); // set up a timer, either periodic or one-shot
 
    // deschedule a timer. Note that non-periodic timers are automatically descheduled when they run, so you don't have to call this on them
@@ -83,7 +96,7 @@ public:
 
       U_INTERNAL_ASSERT_POINTER(first)
 
-      if (mode != NOSIGNAL) delete item;
+      if (mode != NOSIGNAL) U_DELETE(item)
       else
          {
          // put it on the free list

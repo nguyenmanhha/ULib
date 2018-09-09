@@ -22,14 +22,12 @@ U_CREAT_FUNC(orm_driver_sqlite, UOrmDriverSqlite)
 
 UOrmDriverSqlite::~UOrmDriverSqlite()
 {
-   U_TRACE_UNREGISTER_OBJECT(0, UOrmDriverSqlite)
+   U_TRACE_DTOR(0, UOrmDriverSqlite)
 }
 
 void UOrmDriverSqlite::handlerError()
 {
    U_TRACE_NO_PARAM(0, "UOrmDriverSqlite::handlerError()")
-
-   U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
    // Translation table for error status codes
 
@@ -76,8 +74,11 @@ void UOrmDriverSqlite::handlerError()
       U_ENTRY(SQLITE_DONE)          /* sqlite3_step() has finished executing */
    };
 
-   if (UOrmDriver::errmsg  == U_NULLPTR) UOrmDriver::errmsg  = U_SYSCALL(sqlite3_errmsg,  "%p", (sqlite3*)UOrmDriver::connection);
-   if (UOrmDriver::errcode == 0)         UOrmDriver::errcode = U_SYSCALL(sqlite3_errcode, "%p", (sqlite3*)UOrmDriver::connection);
+   if (UOrmDriver::connection)
+      {
+      if (UOrmDriver::errmsg  == U_NULLPTR) UOrmDriver::errmsg  = U_SYSCALL(sqlite3_errmsg,  "%p", (sqlite3*)UOrmDriver::connection);
+      if (UOrmDriver::errcode == 0)         UOrmDriver::errcode = U_SYSCALL(sqlite3_errcode, "%p", (sqlite3*)UOrmDriver::connection);
+      }
 
    if (UOrmDriver::errcode >= 0                                     &&
        UOrmDriver::errcode < (int)U_NUM_ELEMENTS(error_value_table) &&
@@ -117,7 +118,7 @@ UOrmDriver* UOrmDriverSqlite::handlerConnect(const UString& option)
 
    if (pdrv->setOption(option) == false)
       {
-      if (UOrmDriver::connection) delete pdrv;
+      if (UOrmDriver::connection) U_DELETE(pdrv)
 
       U_RETURN_POINTER(U_NULLPTR, UOrmDriver);
       }
@@ -138,7 +139,7 @@ UOrmDriver* UOrmDriverSqlite::handlerConnect(const UString& option)
    // -------------------------------------------------------------------------------------------
 
    const char* fullpath;
-   char buffer[U_PATH_MAX];
+   char buffer[U_PATH_MAX+1];
 
    if (pdrv->dbname == *UString::str_memory) fullpath = UString::str_memory->data();
    else
@@ -149,8 +150,8 @@ UOrmDriver* UOrmDriverSqlite::handlerConnect(const UString& option)
 
       U_INTERNAL_DUMP("sz = %u", sz)
 
-      if (sz) sz = u__snprintf(buffer,    sizeof(buffer),    U_CONSTANT_TO_PARAM("%v/"), dbdir.rep);
-            (void) u__snprintf(buffer+sz, sizeof(buffer)-sz, U_CONSTANT_TO_PARAM("%v.db"), pdrv->dbname.rep);
+      if (sz) sz = u__snprintf(buffer,    U_PATH_MAX,    U_CONSTANT_TO_PARAM("%v/"), dbdir.rep);
+            (void) u__snprintf(buffer+sz, U_PATH_MAX-sz, U_CONSTANT_TO_PARAM("%v.db"), pdrv->dbname.rep);
 
       fullpath = buffer;
       }
@@ -179,7 +180,7 @@ UOrmDriver* UOrmDriverSqlite::handlerConnect(const UString& option)
 
       pdrv->printError(__PRETTY_FUNCTION__);
 
-      if (UOrmDriver::connection) delete pdrv;
+      if (UOrmDriver::connection) U_DELETE(pdrv)
 
       U_RETURN_POINTER(U_NULLPTR, UOrmDriver);
       }
@@ -203,11 +204,14 @@ void UOrmDriverSqlite::handlerDisConnect()
 {
    U_TRACE_NO_PARAM(0, "UOrmDriverSqlite::handlerDisConnect()")
 
-   U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
+   U_INTERNAL_DUMP("UOrmDriver::connection = %p", UOrmDriver::connection)
 
-   (void) U_SYSCALL(sqlite3_close, "%p", (sqlite3*)UOrmDriver::connection);
+   if (UOrmDriver::connection)
+      {
+      (void) U_SYSCALL(sqlite3_close, "%p", (sqlite3*)UOrmDriver::connection);
 
-   UOrmDriver::connection = U_NULLPTR;
+      UOrmDriver::connection = U_NULLPTR;
+      }
 }
 
 bool UOrmDriverSqlite::handlerQuery(const char* query, uint32_t query_len)
@@ -286,7 +290,6 @@ void UOrmDriverSqlite::handlerStatementReset(USqlStatement* pstmt)
    U_TRACE(0, "UOrmDriverSqlite::handlerStatementReset(%p)", pstmt)
 
    U_INTERNAL_ASSERT_POINTER(pstmt)
-   U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
    // reset a prepared statement object back to its initial state, ready to be re-executed
 
@@ -303,13 +306,12 @@ void UOrmDriverSqlite::handlerStatementRemove(USqlStatement* pstmt)
    U_TRACE(0, "UOrmDriverSqlite::handlerStatementRemove(%p)", pstmt)
 
    U_INTERNAL_ASSERT_POINTER(pstmt)
-   U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
    UOrmDriver::errcode = U_SYSCALL(sqlite3_finalize, "%p", (sqlite3_stmt*)pstmt->pHandle);
 
    if (UOrmDriver::errcode) UOrmDriver::printError(__PRETTY_FUNCTION__);
 
-   delete (USqliteStatement*)pstmt;
+   U_DELETE((USqliteStatement*)pstmt)
 }
 
 bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
@@ -335,9 +337,9 @@ bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
 
       switch (param->type)
          {
-         case NULL_VALUE: pdrv->errcode = U_SYSCALL(sqlite3_bind_null, "%p,%d", (sqlite3_stmt*)pHandle, i+1); break;
+         case U_NULL_VALUE: pdrv->errcode = U_SYSCALL(sqlite3_bind_null, "%p,%d", (sqlite3_stmt*)pHandle, i+1); break;
 
-         case BOOLEAN_VALUE:
+         case U_BOOLEAN_VALUE:
             {
             int_value = *(bool*)param->buffer;
 
@@ -345,7 +347,7 @@ bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
             }
          break;
 
-         case CHAR_VALUE:
+         case U_CHAR_VALUE:
             {
             int_value = *(char*)param->buffer;
 
@@ -353,7 +355,7 @@ bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
             }
          break;
 
-         case SHORT_VALUE:
+         case U_SHORT_VALUE:
             {
             int_value = *(short*)param->buffer;
 
@@ -361,7 +363,7 @@ bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
             }
          break;
 
-         case INT_VALUE:
+         case U_INT_VALUE:
             {
             int_value = *(int*)param->buffer;
 
@@ -369,7 +371,7 @@ bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
             }
          break;
 
-         case LLONG_VALUE:
+         case U_LLONG_VALUE:
             {
             long_long_value = *(long long*)param->buffer;
 
@@ -377,7 +379,7 @@ bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
             }
          break;
 
-         case FLOAT_VALUE:
+         case U_FLOAT_VALUE:
             {
             double_value = *(float*)param->buffer;
 
@@ -385,7 +387,7 @@ bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
             }
          break;
 
-         case REAL_VALUE:
+         case U_REAL_VALUE:
             {
             double_value = *(double*)param->buffer;
 
@@ -393,7 +395,18 @@ bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
             }
          break;
 
-         case STRING_VALUE:
+         case U_UTF_VALUE:
+            {
+            U_INTERNAL_ASSERT_POINTER(param->pstr)
+            U_INTERNAL_ASSERT(param->pstr->invariant())
+
+            param->buffer = param->pstr->data();
+            param->length = param->pstr->size();
+            }
+
+         /* FALL THRU */
+
+         case U_STRING_VALUE:
             {
             /**
              * The fourth argument is the number of bytes in the parameter. To be clear: the value is the number of bytes
@@ -421,7 +434,7 @@ bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
    U_RETURN(true);
 }
 
-USqlStatementBindParam* UOrmDriverSqlite::creatSqlStatementBindParam(USqlStatement* pstmt, const char* s, int n, bool bstatic, int rebind)
+USqlStatementBindParam* UOrmDriverSqlite::creatSqlStatementBindParam(USqlStatement* pstmt, const char* s, uint32_t n, bool bstatic, int rebind)
 {
    U_TRACE(0, "UOrmDriverSqlite::creatSqlStatementBindParam(%p,%.*S,%u,%b,%d)", pstmt, n, s, n, bstatic, rebind)
 
@@ -468,35 +481,36 @@ bool USqliteStatement::setBindResult(UOrmDriver* pdrv)
    int sz;
    const char* ptr;
 
-   for (int i = 0; i < (int)num_bind_result; ++i)
+   for (uint32_t i = 0; i < num_bind_result; ++i)
       {
       USqlStatementBindResult* result = vresult[i];
 
       switch (result->type)
          {
-         case BOOLEAN_VALUE:      *(bool*)result->buffer = U_SYSCALL(sqlite3_column_int,    "%p,%d", (sqlite3_stmt*)pHandle, i); break;
-         case    CHAR_VALUE:      *(char*)result->buffer = U_SYSCALL(sqlite3_column_int,    "%p,%d", (sqlite3_stmt*)pHandle, i); break;
-         case   SHORT_VALUE:     *(short*)result->buffer = U_SYSCALL(sqlite3_column_int,    "%p,%d", (sqlite3_stmt*)pHandle, i); break;
-         case     INT_VALUE:       *(int*)result->buffer = U_SYSCALL(sqlite3_column_int,    "%p,%d", (sqlite3_stmt*)pHandle, i); break;
-         case   LLONG_VALUE: *(long long*)result->buffer = U_SYSCALL(sqlite3_column_int64,  "%p,%d", (sqlite3_stmt*)pHandle, i); break;
-         case   FLOAT_VALUE:     *(float*)result->buffer = U_SYSCALL(sqlite3_column_double, "%p,%d", (sqlite3_stmt*)pHandle, i); break;
-         case    REAL_VALUE:    *(double*)result->buffer = U_SYSCALL(sqlite3_column_double, "%p,%d", (sqlite3_stmt*)pHandle, i); break;
-         case  STRING_VALUE:
+         case U_BOOLEAN_VALUE: *(bool*)result->buffer      = U_SYSCALL(sqlite3_column_int,    "%p,%u", (sqlite3_stmt*)pHandle, i); break;
+         case    U_CHAR_VALUE: *(char*)result->buffer      = U_SYSCALL(sqlite3_column_int,    "%p,%u", (sqlite3_stmt*)pHandle, i); break;
+         case   U_SHORT_VALUE: *(short*)result->buffer     = U_SYSCALL(sqlite3_column_int,    "%p,%u", (sqlite3_stmt*)pHandle, i); break;
+         case     U_INT_VALUE: *(int*)result->buffer       = U_SYSCALL(sqlite3_column_int,    "%p,%u", (sqlite3_stmt*)pHandle, i); break;
+         case   U_LLONG_VALUE: *(long long*)result->buffer = U_SYSCALL(sqlite3_column_int64,  "%p,%u", (sqlite3_stmt*)pHandle, i); break;
+         case   U_FLOAT_VALUE: *(float*)result->buffer     = U_SYSCALL(sqlite3_column_double, "%p,%u", (sqlite3_stmt*)pHandle, i); break;
+         case    U_REAL_VALUE: *(double*)result->buffer    = U_SYSCALL(sqlite3_column_double, "%p,%u", (sqlite3_stmt*)pHandle, i); break;
+         case  U_STRING_VALUE:
             {
             U_INTERNAL_ASSERT_POINTER(result->pstr)
+            U_INTERNAL_ASSERT(result->pstr->invariant())
 
             if (((UOrmDriverSqlite*)pdrv)->encoding_UTF16)
                {
-               sz  =               U_SYSCALL(sqlite3_column_bytes16, "%p,%d", (sqlite3_stmt*)pHandle, i);
-               ptr = (const char*) U_SYSCALL(sqlite3_column_text16,  "%p,%d", (sqlite3_stmt*)pHandle, i);
+               sz  =               U_SYSCALL(sqlite3_column_bytes16, "%p,%u", (sqlite3_stmt*)pHandle, i);
+               ptr = (const char*) U_SYSCALL(sqlite3_column_text16,  "%p,%u", (sqlite3_stmt*)pHandle, i);
                }
             else
                {
-               sz  =               U_SYSCALL(sqlite3_column_bytes, "%p,%d", (sqlite3_stmt*)pHandle, i);
-               ptr = (const char*) U_SYSCALL(sqlite3_column_text,  "%p,%d", (sqlite3_stmt*)pHandle, i);
+               sz  =               U_SYSCALL(sqlite3_column_bytes, "%p,%u", (sqlite3_stmt*)pHandle, i);
+               ptr = (const char*) U_SYSCALL(sqlite3_column_text,  "%p,%u", (sqlite3_stmt*)pHandle, i);
                }
 
-            if (sz > 0) (void) result->pstr->replace(ptr, sz);
+            result->setString(ptr, sz);
             }
          break;
          }

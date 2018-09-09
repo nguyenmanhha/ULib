@@ -91,13 +91,13 @@ void UDirWalk::ctor(const UString* dir, const char* _filter, uint32_t _filter_le
       }
 }
 
-bool UDirWalk::setDirectory(const UString& dir, const char* _filter, uint32_t _filter_len, int _filter_flags)
+bool UDirWalk::setDirectory(const char* dir, uint32_t dlen, const char* _filter, uint32_t _filter_len, int _filter_flags)
 {
-   U_TRACE(0, "UDirWalk::setDirectory(%V,%.*S,%u,%d)", dir.rep, _filter_len, _filter, _filter_len, _filter_flags)
+   U_TRACE(0, "UDirWalk::setDirectory(%.*S,%u,%.*S,%u,%d)", dlen, dir, dlen, _filter_len, _filter, _filter_len, _filter_flags)
 
-   pthis->pathlen = dir.size();
+   pthis->pathlen = dlen;
 
-   const char* pdir = u_getPathRelativ(dir.data(), &(pthis->pathlen));
+   const char* pdir = u_getPathRelativ(dir, &(pthis->pathlen));
 
    U_INTERNAL_ASSERT_MAJOR(pthis->pathlen, 0)
 
@@ -161,6 +161,8 @@ U_NO_EXPORT bool UDirWalk::isFile()
    U_INTERNAL_ASSERT_POINTER(pthis)
 
    const char* ptr = u_getsuffix(pathname+1, pathlen-1);
+
+   U_INTERNAL_DUMP("ptr = %S pathname(%u) = %.*S", ptr, pathlen, pathlen, pathname)
 
    if (ptr++)
       {
@@ -441,7 +443,7 @@ U_NO_EXPORT void UDirWalk::vectorPush()
 
    UString str((void*)ptr, len);
 
-   pvector->push(str);
+   pvector->push_back(str);
 }
 
 U_NO_EXPORT int UDirWalk::cmp_modify(const void* a, const void* b)
@@ -460,7 +462,9 @@ U_NO_EXPORT int UDirWalk::cmp_modify(const void* a, const void* b)
 
       (void) ra->stat();
 
-      cache_file_for_compare->insertAfterFind(key, ra);
+      cache_file_for_compare->hold(); // NB: we increases the reference string...
+
+      cache_file_for_compare->insertAfterFind(ra);
       }
 
    UFile* rb = (*cache_file_for_compare)[*(UStringRep**)b];
@@ -473,7 +477,9 @@ U_NO_EXPORT int UDirWalk::cmp_modify(const void* a, const void* b)
 
       (void) rb->stat();
 
-      cache_file_for_compare->insertAfterFind(key, rb);
+      cache_file_for_compare->hold(); // NB: we increases the reference string...
+
+      cache_file_for_compare->insertAfterFind(rb);
       }
 
    U_INTERNAL_DUMP("ra = %.*S", U_FILE_TO_TRACE(*ra))

@@ -77,8 +77,8 @@ static VALUE URUBY_io_rewind(VALUE obj, VALUE args)
 {
    U_TRACE(0, "URUBY_io_rewind(%llu,%llu)", obj, args)
 
-   post_readline_pos       =                     UClientImage_Base::body->data();
-   post_readline_watermark = post_readline_pos + UClientImage_Base::body->size();
+   post_readline_pos       =                     UHTTP::body->data();
+   post_readline_watermark = post_readline_pos + UHTTP::body->size();
 
    U_INTERNAL_DUMP("post_readline_pos = %p post_readline_watermark = %p", post_readline_pos, post_readline_watermark)
 
@@ -513,7 +513,7 @@ extern U_EXPORT bool runRUBY();
 
       if (rb_respond_to(body, rb_intern("to_path")))
          {
-         char buffer[U_PATH_MAX];
+         char buffer[U_PATH_MAX+1];
 
          // If the Body responds to to_path, it must return a String identifying the location of a file whose contents are
          // identical to that produced by calling each; this may be used by the server as an alternative, possibly more
@@ -521,7 +521,7 @@ extern U_EXPORT bool runRUBY();
 
          result = rb_funcall(body, rb_intern("to_path"), 0);
 
-         U_http_info.endHeader = u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("X-Sendfile: %.*s\r\n\r\n"), RSTRING_LEN(result), RSTRING_PTR(result));
+         U_http_info.endHeader = u__snprintf(buffer, U_PATH_MAX, U_CONSTANT_TO_PARAM("X-Sendfile: %.*s\r\n\r\n"), RSTRING_LEN(result), RSTRING_PTR(result));
 
          (void) UClientImage_Base::wbuffer->append(buffer, U_http_info.endHeader);
          }
@@ -592,7 +592,7 @@ extern U_EXPORT bool runRUBY();
             VALUE trace     = rb_funcall(global_bang, rb_intern("backtrace"), 0),
                   trace_str = rb_funcall(trace, rb_intern("join"), 1, rb_str_new_cstr("\n"));
 
-            (void) UFile::writeToTmp(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("Error: \"%s\"\n\n%s"), c_e_msg, StringValueCStr(trace_str)),
+            (void) UFile::writeToTmp(buffer, u__snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("Error: \"%s\"\n\n%s"), c_e_msg, StringValueCStr(trace_str)),
                                      O_RDWR | O_APPEND, "ruby_embedded.err", 0);
             }
 #     endif

@@ -4,7 +4,7 @@
 AUTOMAKE_OPTIONS = ## dist-shar dist-zip
 
 EXTRA_DIST = random.cdb plugin inp ok *.test *.cpp CA private server_rpc.cfg file_config.cf file_config.gperf \
-				 file_config.gperf.sh file_config.key test_bison.h dialog.test redis.test elasticsearch.test twilio.test
+				 file_config.gperf.sh file_config.key test_bison.h dialog.test redis.test elasticsearch.test twilio.test json_obj.h
 
 MAINTAINERCLEANFILES	= Makefile.in
 
@@ -17,8 +17,8 @@ PRG = test_timeval test_timer test_notifier test_string \
 		test_vector test_options test_application test_tree test_compress test_cache test_date \
 		test_services test_base64 test_header test_entity \
 		test_ipaddress test_socket test_ftp test_http test_rdb_client \
-		test_tokenizer test_query_parser test_multipart test_command test_dialog test_rdb_server test_json test_server test_redis test_elasticsearch \
-		test_smtp test_pop3 test_imap
+		test_tokenizer test_query_parser test_multipart test_command test_dialog test_json test_redis test_elasticsearch \
+		test_smtp test_pop3 test_imap test_hash_map test_serialize
 ##		test_twilio
 
 TST = timeval.test timer.test notifier.test string.test \
@@ -26,8 +26,27 @@ TST = timeval.test timer.test notifier.test string.test \
 		vector.test options.test application.test tree.test compress.test cache.test date.test \
 		services.test base64.test header.test entity.test \
 		ipaddress.test socket.test ftp.test http.test \
-		tokenizer.test query_parser.test multipart.test rdb_client_server.test command.test json.test server.test server_rpc.test
+		tokenizer.test query_parser.test multipart.test command.test json.test hash_map.test serialize.test
 ## 	pop3.test imap.test smtp.test dialog.test redis.test elasticsearch.test twilio.test
+
+if ENABLE_SHARED
+if ENABLE_PLUGINS
+PRG += test_server test_rdb_server test_plugin
+TST += server.test server_rpc.test rdb_client_server.test plugin.test
+
+test_plugin_SOURCES  = test_plugin.cpp
+
+product1_la_SOURCES  = plugin/product1.cpp
+product1_la_LIBADD   = $(LDADD)
+product1_la_LDFLAGS  = -module -rpath /nowhere @MODULE_LIBTOOL_OPTIONS@
+
+product2_la_SOURCES  = plugin/product2.cpp
+product2_la_LIBADD   = $(LDADD)
+product2_la_LDFLAGS  = -module -rpath /nowhere @MODULE_LIBTOOL_OPTIONS@
+
+noinst_LTLIBRARIES = product1.la product2.la
+endif
+endif
 
 if SSH
   PRG += test_ssh_client
@@ -82,6 +101,8 @@ test_server_SOURCES = test_server.cpp
 test_redis_SOURCES = test_redis.cpp
 test_mongodb_SOURCES = test_mongodb.cpp
 test_elasticsearch_SOURCES = test_elasticsearch.cpp
+test_hash_map_SOURCES = test_hash_map.cpp
+test_serialize_SOURCES = test_serialize.cpp
 
 if PTHREAD
 PRG += test_thread
@@ -124,8 +145,8 @@ test_pcre_SOURCES = test_pcre.cpp
 endif
 
 if SSL
-PRG += test_des3 test_digest test_certificate test_crl test_pkcs10 test_ssl_client test_ssl_server test_https test_pkcs7 test_url
-TST += des3.test digest.test certificate.test crl.test pkcs10.test ssl_client_server.test https.test pkcs7.test url.test
+PRG += test_des3 test_certificate test_crl test_pkcs10 test_ssl_client test_ssl_server test_https test_pkcs7 test_url test_digest
+TST += des3.test certificate.test crl.test pkcs10.test ssl_client_server.test https.test pkcs7.test url.test digest.test
 test_des3_SOURCES = test_des3.cpp
 test_digest_SOURCES = test_digest.cpp
 test_certificate_SOURCES = test_certificate.cpp
@@ -216,32 +237,13 @@ test_interrupt_LDADD += -lubsan
 endif
 endif
 
-if PLUGIN
-if STDCPP
-PRG += test_plugin
-TST += plugin.test
-test_plugin_SOURCES  = test_plugin.cpp
-
-product1_la_SOURCES  = plugin/product1.cpp
-product1_la_LIBADD   = $(LDADD)
-product1_la_LDFLAGS  = -module -rpath /nowhere @MODULE_LIBTOOL_OPTIONS@
-
-product2_la_SOURCES  = plugin/product2.cpp
-product2_la_LIBADD   = $(LDADD)
-product2_la_LDFLAGS  = -module -rpath /nowhere @MODULE_LIBTOOL_OPTIONS@
-
-## for convenience module
-noinst_LTLIBRARIES = product1.la product2.la
-endif
-endif
-
 check_PROGRAMS = $(PRG)
 TESTS = $(TST) ../reset.color
 
 ## arping.test event.test curl.test ftp.test imap.test ldap.test pop3.test sigslot.test smtp.test ssh_client.test
 test: all-am
 	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
-	../make_test.sh application.test base64.test bit_array.test cache.test cdb.test certificate.test command.test compress.test crl.test date.test des3.test dialog.test digest.test entity.test expat.test file.test file_config.test header.test http.test https.test interrupt.test json.test log.test memory_pool.test multipart.test notifier.test options.test pcre.test pkcs10.test pkcs7.test plugin.test process.test query_parser.test rdb.test rdb_client_server.test server.test server_rpc.test services.test soap_client.test soap_server.test ssl_client_server.test string.test timer.test timestamp.test timeval.test tokenizer.test tree.test unixsocket.test url.test vector.test zip.test ../reset.color
+	../make_test.sh application.test base64.test bit_array.test cache.test cdb.test certificate.test command.test compress.test crl.test date.test des3.test dialog.test digest.test entity.test expat.test file.test file_config.test header.test http.test https.test interrupt.test json.test log.test memory_pool.test multipart.test notifier.test options.test pcre.test pkcs10.test pkcs7.test plugin.test process.test query_parser.test rdb.test rdb_client_server.test server.test server_rpc.test services.test soap_client.test soap_server.test ssl_client_server.test string.test timer.test timestamp.test timeval.test tokenizer.test tree.test unixsocket.test url.test vector.test zip.test hash_map.test serialize.test ../reset.color
 
 clean-local:
 	-rm -rf out err core .libs *.bb* *.da *.gc* *.log test_log.log* tmp/* \

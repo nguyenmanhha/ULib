@@ -17,23 +17,6 @@ int     UTimer::mode;
 UTimer* UTimer::pool;
 UTimer* UTimer::first;
 
-void UTimer::init(Type _mode)
-{
-   U_TRACE(0, "UTimer::init(%d)", _mode)
-
-   if (u_start_time     == 0 &&
-       u_setStartTime() == false)
-      {
-      U_ERROR("UTimer::init(%d): system date not updated", _mode);
-      }
-
-   if ((mode = _mode) != NOSIGNAL)
-      {
-           if (_mode ==  SYNC) UInterrupt::setHandlerForSignal(SIGALRM, (sighandler_t)UTimer::handlerAlarm);
-      else if (_mode == ASYNC) UInterrupt::insert(             SIGALRM, (sighandler_t)UTimer::handlerAlarm); // async signal
-      }
-}
-
 U_NO_EXPORT void UTimer::insertEntry()
 {
    U_TRACE_NO_PARAM(0, "UTimer::insertEntry()")
@@ -282,8 +265,8 @@ void UTimer::clear()
 
          U_INTERNAL_DUMP("item->alarm = %p next = %p", item->alarm, next)
 
-         delete item->alarm;
-         delete item;
+      // U_DELETE(item->alarm)
+         U_DELETE(item)
          }
       while (next);
       }
@@ -299,8 +282,8 @@ void UTimer::clear()
 
          U_INTERNAL_DUMP("item->alarm = %p next = %p", item->alarm, next)
 
-         delete item->alarm;
-         delete item;
+      // U_DELETE(item->alarm)
+         U_DELETE(item)
          }
       while (next);
       }

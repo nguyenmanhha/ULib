@@ -43,14 +43,14 @@ public:
 
       if (table)
          {
-         delete table;
-         delete rdbname;
-         delete Messaggio::id_max_ttl;
+         U_DELETE(table)
+         U_DELETE(rdbname)
+         U_DELETE(Messaggio::id_max_ttl)
 
 #     ifdef U_DB_MANAGE
-         delete lrdb;
+         U_DELETE(lrdb)
 #     else
-         if (rdb) delete rdb;
+         if (rdb) U_DELETE(rdb)
 #     endif
          }
       }
@@ -61,7 +61,7 @@ public:
       U_TRACE(5, "Application::MessageToString(%p,%p)", msg, bdelete)
 
       *bdelete        = true;
-      UStringRep* rep = UObject2StringRep<Messaggio>(*msg, false);
+      UStringRep* rep = UObject2StringRep<Messaggio>(*msg);
 
       U_RETURN_POINTER(rep,UStringRep);
       }
@@ -83,7 +83,7 @@ public:
 
          U_NEW(UStringRep, rep, UStringRep((const char*)&(msg->start), sizeof(time_t)));
 
-         delete msg;
+         U_DELETE(msg)
 
          U_RETURN_POINTER(rep,UStringRep);
          }
@@ -299,7 +299,9 @@ public:
 
          ++nmsg;
 
-         table->insertAfterFind(Messaggio::msg->identifier, Messaggio::msg);
+         table->hold();
+
+         table->insertAfterFind(Messaggio::msg);
          }
 
       processLine(bnew);
@@ -323,7 +325,7 @@ public:
 
       // setting for anomalie
 
-      table = new UHashMap<Messaggio*>(U_GET_NEXT_PRIME_NUMBER(max_size_table + MARGINE), true); // ignore case
+      table = new UHashMap<Messaggio*>(u_nextPowerOfTwo(max_size_table + MARGINE), true); // ignore case
 
       rdbname               = new UString(100U);
       Messaggio::id_max_ttl = new UString;

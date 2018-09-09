@@ -115,7 +115,7 @@ bool UServices::read(int fd, UString& buffer, uint32_t count, int timeoutMS)
 
    if (ncount < chunk)
       {
-      UString::_reserve(buffer, chunk);
+      UString::_reserve(buffer, buffer.getReserveNeed(chunk));
 
       ncount = buffer.space();
       }
@@ -157,7 +157,7 @@ read:
 
    if (value == (ssize_t)ncount)
       {
-#  ifndef U_SERVER_CAPTIVE_PORTAL
+#  if defined(U_LINUX) && (!defined(U_SERVER_CAPTIVE_PORTAL) || defined(ENABLE_THREAD))
       U_DEBUG("UServices::read(%u) ran out of buffer space(%u)", count, ncount)
 #  endif
 
@@ -165,7 +165,7 @@ read:
 
       // NB: may be there are available more bytes to read...
 
-      UString::_reserve(buffer, ncount * 2);
+      UString::_reserve(buffer, buffer.getReserveNeed(ncount * 2));
       
       ptr = buffer.c_pointer(start);
 
@@ -198,9 +198,7 @@ int UServices::askToLDAP(UString* pinput, UHashMap<UString>* ptable, const char*
 
    bool result = cmd.execute(pinput, &output, -1, _fd_stderr);
 
-#ifndef U_LOG_DISABLE
-   UServer_Base::logCommandMsgError(cmd.getCommand(), false);
-#endif
+   U_SRV_LOG_CMD_MSG_ERR(cmd, false);
 
    if (pinput == U_NULLPTR) ptable->clear();
 
@@ -337,7 +335,7 @@ void UServices::setCApath(const char* _CApath)
 
    U_INTERNAL_ASSERT(_CApath && *_CApath)
 
-   if (CApath == U_NULLPTR) U_NEW_ULIB_OBJECT(UString, CApath, UString);
+   if (CApath == U_NULLPTR) U_NEW_STRING(CApath, UString);
 
    *CApath = UFile::getRealPath(_CApath);
 }
@@ -571,7 +569,7 @@ void UServices::releaseEngine(ENGINE* e, bool bkey)
       }
 }
 
-EVP_PKEY* UServices::loadKey(const UString& x, const char* format, bool _private, const char* password, ENGINE* e)
+EVP_PKEY* UServices::loadKey(UString& x, const char* format, bool _private, const char* password, ENGINE* e)
 {
    U_TRACE(0, "UServices::loadKey(%V,%S,%b,%S,%p)", x.rep, format, _private, password, e)
 
@@ -629,7 +627,7 @@ done:
  * passwd is the corresponding password for the private key
  */
 
-UString UServices::getSignatureValue(int alg, const UString& data, const UString& pkey, const UString& passwd, int base64, ENGINE* e)
+UString UServices::getSignatureValue(int alg, const UString& data, UString& pkey, UString& passwd, int base64, ENGINE* e)
 {
    U_TRACE(0,"UServices::getSignatureValue(%d,%V,%V,%V,%d,%p)", alg, data.rep, pkey.rep, passwd.rep, base64, e)
 
@@ -668,7 +666,7 @@ UString UServices::getSignatureValue(int alg, const UString& data, const UString
    U_RETURN_STRING(output);
 }
 
-bool UServices::verifySignature(int alg, const UString& data, const UString& signature, const UString& pkey, ENGINE* e)
+bool UServices::verifySignature(int alg, const UString& data, const UString& signature, UString& pkey, ENGINE* e)
 {
    U_TRACE(0, "UServices::verifySignature(%d,%V,%V,%V,%p)", alg, data.rep, signature.rep, pkey.rep, e)
 
@@ -703,7 +701,7 @@ UString UServices::createToken(int alg)
    U_TRACE(0, "UServices::createToken(%d)", alg)
 
    UString output(80U);
-   uint32_t u = u_get_num_random(0);
+   uint32_t u = u_get_num_random();
 
    u_dgst_init(alg, U_NULLPTR, 0);
 
@@ -724,6 +722,8 @@ void UServices::generateDigest(int alg, uint32_t keylen, unsigned char* data, ui
 #ifdef USE_LIBSSL
    u_dgst_init(alg, (const char*)key, keylen);
 
+   U_INTERNAL_DUMP("u_hmac_keylen = %u", u_hmac_keylen)
+
    u_dgst_hash(data, size);
 
    if (base64 == -2)
@@ -734,13 +734,61 @@ void UServices::generateDigest(int alg, uint32_t keylen, unsigned char* data, ui
       }
    else
       {
-      uint32_t bytes_written = u_dgst_finish((unsigned char*)output.pend(), base64);
+      uint32_t sz = output.size(), bytes_written = u_dgst_finish((unsigned char*)output.data()+sz, base64);
 
-      output.size_adjust(output.size() + bytes_written);
+      output.size_adjust(sz + bytes_written);
       }
 
    U_INTERNAL_DUMP("u_mdLen = %d output = %V", u_mdLen, output.rep)
 #endif
+}
+
+bool UServices::setDigestCalcResponse(const UString& ha1, const UString& nc, const UString& nonce, const UString& cnonce, const UString& uri, const UString& user, UString& response)
+{
+   U_TRACE(0, "UServices::setDigestCalcResponse(%V,%V,%V,%V,%V,%V,%p)", ha1.rep, nc.rep, nonce.rep, cnonce.rep, uri.rep, user.rep, &response)
+
+   U_INTERNAL_ASSERT(ha1)
+
+   if (    nc.empty() ||
+          uri.empty() ||
+        nonce.empty() ||
+       cnonce.empty() ||
+         user.empty())
+      {
+      U_WARNING("Invalid Authorization Digest header: nc = %V nonce = %V cnonce = %V uri = %V user = %V", nc.rep, nonce.rep, cnonce.rep, uri.rep, user.rep);
+
+      U_RETURN(false);
+      }
+
+   // ha1 => MD5(user : realm : password)
+
+#ifdef USE_LIBSSL
+   UString  a2(4+1+uri.size()), //     method : uri
+           ha2(33U),            // MD5(method : uri)
+            a3(200U);
+
+   // MD5(method : uri)
+
+   a2.snprintf(U_CONSTANT_TO_PARAM("%.*s:%v"), U_HTTP_METHOD_TO_TRACE, uri.rep);
+
+   generateDigest(U_HASH_MD5, 0, a2, ha2, false);
+
+   U_INTERNAL_DUMP("U_HTTP_METHOD_TO_TRACE = %.*s ha2 = %V", U_HTTP_METHOD_TO_TRACE, ha2.rep)
+
+   // --------------------------------------------------------------------------
+   // MD5(HA1 : nonce : nc : cnonce : qop : HA2)
+   // --------------------------------------------------------------------------
+
+   a3.snprintf(U_CONSTANT_TO_PARAM("%v:%v:%v:%v:" U_HTTP_QOP ":%v"), ha1.rep, nonce.rep, nc.rep, cnonce.rep, ha2.rep);
+
+   generateDigest(U_HASH_MD5, 0, a3, response, false);
+
+   U_INTERNAL_DUMP("response = %V", response.rep)
+
+   U_RETURN(true);
+#endif
+
+   U_RETURN(false);
 }
 
 #define U_HMAC_SIZE  16U                           // MD5 output len

@@ -30,14 +30,14 @@ UClient_Base* USCGIPlugIn::connection;
 
 USCGIPlugIn::USCGIPlugIn()
 {
-   U_TRACE_REGISTER_OBJECT(0, USCGIPlugIn, "")
+   U_TRACE_CTOR(0, USCGIPlugIn, "")
 }
 
 USCGIPlugIn::~USCGIPlugIn()
 {
-   U_TRACE_UNREGISTER_OBJECT(0, USCGIPlugIn)
+   U_TRACE_DTOR(0, USCGIPlugIn)
 
-   if (connection) delete connection;
+   if (connection) U_DELETE(connection)
 }
 
 // Server-wide hooks
@@ -61,24 +61,19 @@ int USCGIPlugIn::handlerConfig(UFileConfig& cfg)
    // LOG_FILE       location for file log (use server log if exist)
    // ------------------------------------------------------------------------------------------
 
-   if (cfg.loadTable())
-      {
-      UClient_Base::cfg = &cfg;
+   UClient_Base::pcfg = &cfg;
 
-      U_NEW(UClient_Base, connection, UClient_Base(&cfg));
+   U_NEW(UClient_Base, connection, UClient_Base(&cfg));
 
-      UString x = cfg.at(U_CONSTANT_TO_PARAM("SCGI_URI_MASK"));
+   UString x = cfg.at(U_CONSTANT_TO_PARAM("SCGI_URI_MASK"));
 
-      U_INTERNAL_ASSERT_EQUALS(UHTTP::scgi_uri_mask, U_NULLPTR)
+   U_INTERNAL_ASSERT_EQUALS(UHTTP::scgi_uri_mask, U_NULLPTR)
 
-      if (x) U_NEW(UString, UHTTP::scgi_uri_mask, UString(x));
+   if (x) U_NEW_STRING(UHTTP::scgi_uri_mask, UString(x))
 
-      scgi_keep_conn = cfg.readBoolean(U_CONSTANT_TO_PARAM("SCGI_KEEP_CONN"));
+   scgi_keep_conn = cfg.readBoolean(U_CONSTANT_TO_PARAM("SCGI_KEEP_CONN"));
 
-      U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
-      }
-
-   U_RETURN(U_PLUGIN_HANDLER_GO_ON);
+   U_RETURN(U_PLUGIN_HANDLER_PROCESSED);
 }
 
 int USCGIPlugIn::handlerInit()
@@ -93,8 +88,8 @@ int USCGIPlugIn::handlerInit()
 
       U_NEW(UTCPSocket, connection->socket, UTCPSocket(connection->bIPv6));
 #  else
-      if (connection->port) U_NEW(UTCPSocket,  connection->socket, UTCPSocket(connection->bIPv6));
-      else                  U_NEW(UUnixSocket, connection->socket, UUnixSocket);
+      if (connection->port) U_NEW(UTCPSocket,  connection->socket, UTCPSocket(connection->bIPv6))
+      else                  U_NEW(UUnixSocket, connection->socket, UUnixSocket)
 #  endif
 
       if (connection->connect())
@@ -106,17 +101,18 @@ int USCGIPlugIn::handlerInit()
 #     else
          // NB: SCGI is NOT a static page...
 
-         if (UHTTP::valias == U_NULLPTR) U_NEW(UVector<UString>, UHTTP::valias, UVector<UString>(2U));
+         if (UHTTP::valias == U_NULLPTR) U_NEW(UVector<UString>, UHTTP::valias, UVector<UString>(2U))
 
          UHTTP::valias->push_back(*UHTTP::scgi_uri_mask);
          UHTTP::valias->push_back(*UString::str_nostat);
 
-         U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
+         U_RETURN(U_PLUGIN_HANDLER_OK);
 #     endif
          }
 
-      delete connection;
-             connection = U_NULLPTR;
+      U_DELETE(connection)
+
+      connection = U_NULLPTR;
       }
 
    U_RETURN(U_PLUGIN_HANDLER_ERROR);
@@ -174,7 +170,7 @@ int USCGIPlugIn::handlerRequest()
 
       request.snprintf(U_CONSTANT_TO_PARAM("%u:%v,"), environment.size(), environment.rep);
 
-      (void) request.append(*UClientImage_Base::body);
+      (void) request.append(*UHTTP::body);
 
       connection->prepareRequest(request);
 
@@ -203,8 +199,7 @@ int USCGIPlugIn::handlerRequest()
 
       *UClientImage_Base::wbuffer = connection->getResponse();
 
-      if (UHTTP::processCGIOutput(false, false)) UClientImage_Base::setRequestProcessed();
-      else                                       UHTTP::setInternalError();
+      if (UHTTP::processCGIOutput(false, false) == false) UHTTP::setInternalError();
 
 end:  connection->clearData();
 
@@ -214,10 +209,10 @@ end:  connection->clearData();
          connection->close();
          }
 
-      U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
+      U_RETURN(U_PLUGIN_HANDLER_PROCESSED);
       }
 
-   U_RETURN(U_PLUGIN_HANDLER_GO_ON);
+   U_RETURN(U_PLUGIN_HANDLER_OK);
 }
 
 // DEBUG

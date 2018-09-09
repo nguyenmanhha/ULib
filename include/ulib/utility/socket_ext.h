@@ -64,10 +64,11 @@ public:
 
    static bool getARPCache(UString& cache, UVector<UString>& vec);
 
-   static UString getNetworkDevice(const char* exclude); // eth0
-   static UString getIPAddress(int fd, const char* device); // eth0
-   static UString getMacAddress(int fd, const char* device); // eth0
-   static UString getNetworkAddress(int fd, const char* device); // eth0
+   static UString getNetworkDevice(const char* exclude = "eth0");
+   static UString getIPAddress(int fd, const char* device = "eth0");
+   static UString getMacAddress(int fd, const char* device = "eth0");
+   static UString getMacAddress(USocket* s, const char* device = "eth0");
+   static UString getNetworkAddress(int fd, const char* device = "eth0");
 
    static UString getMacAddress(          const char* ip, uint32_t ip_len);
    static UString getNetworkInterfaceName(const char* ip, uint32_t ip_len);
@@ -191,16 +192,14 @@ private:
 
    // write data
 
-   static int write(USocket* sk, const UString& buffer,           int timeoutMS) { return write(sk, U_STRING_TO_PARAM(buffer), timeoutMS); }
-   static int write(USocket* sk, const char* ptr, uint32_t count, int timeoutMS);
+   static uint32_t write(USocket* sk, const UString& buffer,           int timeoutMS) { return write(sk, U_STRING_TO_PARAM(buffer), timeoutMS); }
+   static uint32_t write(USocket* sk, const char* ptr, uint32_t count, int timeoutMS);
 
    // write data from multiple buffers
 
-   static void iov_resize(struct iovec* iov, int iovcnt, size_t value) U_NO_EXPORT;
+   static uint32_t iov_resize(struct iovec* liov, const struct iovec* iov, int iovcnt, uint32_t byte_written);
 
-   static int  writev(USocket* sk, struct iovec* iov, int iovcnt, uint32_t count, int timeoutMS);
-   static int _writev(USocket* sk, struct iovec* iov, int iovcnt, uint32_t count, int timeoutMS);
-   static int  writev(USocket* sk, struct iovec* iov, int iovcnt, uint32_t count, int timeoutMS, uint32_t cloop);
+   static uint32_t writev(USocket* sk, struct iovec* iov, int iovcnt, uint32_t count, int timeoutMS);
 
    /**
     * sendfile() copies data between one file descriptor and another. Either or both of these file descriptors may refer to a socket.
@@ -210,7 +209,7 @@ private:
     * the kernel, sendfile() does not need to spend time transferring data to and from user space
     */
 
-   static int sendfile(USocket* sk, int in_fd, off_t* poffset, uint32_t count, int timeoutMS);
+   static uint32_t sendfile(USocket* sk, int in_fd, off_t* poffset, off_t count, int timeoutMS);
 
    friend class URPC;
    friend class UHTTP;

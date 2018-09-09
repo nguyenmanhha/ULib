@@ -345,7 +345,7 @@ int UPop3Client::getUIDL(UVector<UString>& vec)
 
          r = UString((void*)p, s - p);
 
-         vec.push(r);
+         vec.push_back(r);
 
          ++s;
          }
@@ -374,7 +374,7 @@ int UPop3Client::getSizeMessage(uint32_t n)
          char* ptr = buffer.c_pointer(sizeof(U_POP3_OK));
 
          num_msg      = strtol(ptr, (char**)&ptr, 10);
-         int size_msg = atoi(ptr);
+         int size_msg = u_atoi(ptr);
 
          U_INTERNAL_DUMP("num_msg = %d size_msg = %d", num_msg, size_msg)
 
@@ -486,7 +486,7 @@ int UPop3Client::getAllHeader(UVector<UString>& vec)
             {
             str = UString((void*)buffer.c_pointer(vpos[i]), vend[i] - vpos[i]);
 
-            vec.push(str);
+            vec.push_back(str);
             }
 
          U_RETURN(num_msg);
@@ -525,7 +525,7 @@ int UPop3Client::getAllMessage(UVector<UString>& vec)
             {
             str = UString((void*)buffer.c_pointer(vpos[i]), vend[i] - vpos[i]);
 
-            vec.push(str);
+            vec.push_back(str);
             }
 
          U_RETURN(num_msg);

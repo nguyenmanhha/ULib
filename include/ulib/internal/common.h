@@ -109,28 +109,6 @@ extern U_EXPORT void  operator delete[](void*);
 #include <ulib/internal/objectIO.h>
 #include <ulib/internal/memory_pool.h>
 
-enum StringAllocationType {
-   STR_ALLOCATE_SOAP         = 0x00000001,
-   STR_ALLOCATE_IMAP         = 0x00000002,
-   STR_ALLOCATE_SSI          = 0x00000004,
-   STR_ALLOCATE_NOCAT        = 0x00000008,
-   STR_ALLOCATE_HTTP         = 0x00000010,
-   STR_ALLOCATE_QUERY_PARSER = 0x00000020,
-   STR_ALLOCATE_ORM          = 0x00000040,
-   STR_ALLOCATE_HTTP2        = 0x00000080
-};
-
-enum StringAllocationIndex {
-   STR_ALLOCATE_INDEX_SOAP         = 18,
-   STR_ALLOCATE_INDEX_IMAP         = STR_ALLOCATE_INDEX_SOAP+14,
-   STR_ALLOCATE_INDEX_SSI          = STR_ALLOCATE_INDEX_IMAP+4,
-   STR_ALLOCATE_INDEX_NOCAT        = STR_ALLOCATE_INDEX_SSI+2,
-   STR_ALLOCATE_INDEX_HTTP         = STR_ALLOCATE_INDEX_NOCAT+2,
-   STR_ALLOCATE_INDEX_QUERY_PARSER = STR_ALLOCATE_INDEX_HTTP+10,
-   STR_ALLOCATE_INDEX_ORM          = STR_ALLOCATE_INDEX_QUERY_PARSER+5,
-   STR_ALLOCATE_INDEX_HTTP2        = STR_ALLOCATE_INDEX_ORM+15
-};
-
 struct null {}; // Special type to bind a NULL value to column using operator,() - syntactic sugar
 
 using namespace std;
@@ -143,14 +121,15 @@ union uustringrep { ustringrep* p1; UStringRep* p2; };
 
 class U_EXPORT ULib {
 public:
-    ULib(const char* mempool) { init(mempool, U_NULLPTR); }
-   ~ULib()                    {  end(); }
+    ULib(const char* mempool) { init(U_NULLPTR, mempool); }
+   ~ULib()                    { end(); }
 
    static void end();
-   static void init(const char* mempool, char** argv);
+   static void init(char** argv, const char* mempool = U_NULLPTR);
 
-private:
+   private:
    static uustring uustringnull;
+   static uustring uustringubuffer;
    static uustringrep uustringrepnull;
 
    friend class UString;
@@ -178,7 +157,9 @@ static_assert( u_dd(4) == U_MULTICHAR_CONSTANT16('0','2'), "should be U_MULTICHA
 
 template<typename T> static constexpr T pow10(size_t x) { return x ? 10*pow10<T>(x-1) : 1; }
 
+# ifndef __INTEL_COMPILER 
 static_assert( pow10<double>(29)   == 1e+29,                   "should be 1e+29" ); // NB: fail for exponent >= 30
+# endif
 static_assert( pow10<uint64_t>(19) == 10000000000000000000ULL, "should be 1e+19" );
 
 static_assert( U_SIZE_TO_STACK_INDEX(U_MAX_SIZE_PREALLOCATE) == 9, "should be 9" );
@@ -186,6 +167,6 @@ static_assert( U_SIZE_TO_STACK_INDEX(U_MAX_SIZE_PREALLOCATE) == 9, "should be 9"
 
 // Init library
 
-#define U_ULIB_INIT(argv) U_SET_LOCATION_INFO, ULib::init(U_NULLPTR, argv)
+#define U_ULIB_INIT(argv) U_SET_LOCATION_INFO, ULib::init(argv, U_NULLPTR)
 
 #endif

@@ -23,14 +23,14 @@ UCommand* UTsaPlugIn::command;
 
 UTsaPlugIn::UTsaPlugIn()
 {
-   U_TRACE_REGISTER_OBJECT(0, UTsaPlugIn, "")
+   U_TRACE_CTOR(0, UTsaPlugIn, "")
 }
 
 UTsaPlugIn::~UTsaPlugIn()
 {
-   U_TRACE_UNREGISTER_OBJECT(0, UTsaPlugIn)
+   U_TRACE_DTOR(0, UTsaPlugIn)
 
-   if (command) delete command;
+   if (command) U_DELETE(command)
 }
 
 // Server-wide hooks
@@ -39,20 +39,16 @@ int UTsaPlugIn::handlerConfig(UFileConfig& cfg)
 {
    U_TRACE(0, "UTsaPlugIn::handlerConfig(%p)", &cfg)
 
+   // -----------------------------------------------
    // Perform registration of userver method
    // -----------------------------------------------
    // COMMAND                      command to execute
    // ENVIRONMENT  environment for command to execute
    // -----------------------------------------------
 
-   if (cfg.loadTable())
-      {
-      command = UServer_Base::loadConfigCommand();
+   command = UServer_Base::loadConfigCommand();
 
-      U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
-      }
-
-   U_RETURN(U_PLUGIN_HANDLER_GO_ON);
+   U_RETURN(U_PLUGIN_HANDLER_PROCESSED);
 }
 
 int UTsaPlugIn::handlerInit()
@@ -66,12 +62,12 @@ int UTsaPlugIn::handlerInit()
 #  ifndef U_ALIAS
       U_SRV_LOG("WARNING: Sorry, I can't enable TSA plugin because alias URI support is missing, please recompile ULib");
 #  else
-      if (UHTTP::valias == U_NULLPTR) U_NEW(UVector<UString>, UHTTP::valias, UVector<UString>(2U));
+      if (UHTTP::valias == U_NULLPTR) U_NEW(UVector<UString>, UHTTP::valias, UVector<UString>(2U))
 
       UHTTP::valias->push_back(*UString::str_tsa);
       UHTTP::valias->push_back(*UString::str_nostat);
 
-      U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
+      U_RETURN(U_PLUGIN_HANDLER_OK);
 #  endif
       }
 
@@ -86,29 +82,26 @@ int UTsaPlugIn::handlerRequest()
 
    if (UHTTP::isTSARequest())
       {
-      // process TSA request
+      // NB: process the HTTP tsa request with fork....
+
+      if (UServer_Base::startParallelization()) U_RETURN(U_PLUGIN_HANDLER_PROCESSED); // parent 
 
       UString body;
 
-      if (command->execute(UClientImage_Base::body, &body))
+      if (command->execute(UHTTP::body, &body) == false) UHTTP::setInternalError();
+      else
          {
          U_http_info.nResponseCode = HTTP_OK;
 
-         UHTTP::setResponse(true, *UString::str_ctype_tsa, &body);
-         }
-      else
-         {
-         UHTTP::setInternalError();
+         UHTTP::setResponse(*UString::str_ctype_tsa, &body);
          }
 
-#  ifndef U_LOG_DISABLE
-      UServer_Base::logCommandMsgError(command->getCommand(), true);
-#  endif
+      U_SRV_LOG_CMD_MSG_ERR(*command, true);
 
-      U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
+      U_RETURN(U_PLUGIN_HANDLER_PROCESSED);
       }
 
-   U_RETURN(U_PLUGIN_HANDLER_GO_ON);
+   U_RETURN(U_PLUGIN_HANDLER_OK);
 }
 
 // DEBUG

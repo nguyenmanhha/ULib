@@ -8,8 +8,8 @@
 
 start_msg web_server_ssl
 
-(cd benchmark; rm -f  db; creat_link FrameworkBenchmarks/ULib/db db; sync)
-(cd ..;        rm -rf db; creat_link examples/benchmark/db		  db; sync)
+(cd benchmark; rm -f  db; creat_link FrameworkBenchmarks/ULib/db db)
+(cd ..;        rm -rf db; creat_link examples/benchmark/db		  db)
                           creat_link			 benchmark/db       db
 								  creat_link			 benchmark/libraries libraries
 
@@ -21,7 +21,7 @@ rm -f db/session.ssl* /tmp/ssl_session.txt /tmp/byterange* /tmp/*.memusage.* /tm
 					 trace.*userver_ssl*.[0-9]*			  object.*userver_ssl*.[0-9]*				 stack.*userver_ssl*.[0-9]* mempool.*userver_ssl*.[0-9]* \
       $DOC_ROOT/trace.*userver_ssl*.[0-9]* $DOC_ROOT/object.*userver_ssl*.[0-9]* $DOC_ROOT/stack.*userver_ssl*.[0-9]* $DOC_ROOT/mempool.*userver_ssl*.[0-9]*
 
-#UTRACE="0 110M 0"
+#UTRACE="0 110M -1"
 #UTRACE_SIGNAL="0 50M 0"
 #UOBJDUMP="0 10M 500"
 #USIMERR="error.sim"
@@ -112,6 +112,7 @@ userver {
  RUN_AS_USER nobody
  REQ_TIMEOUT 30
 #MIN_SIZE_FOR_SENDFILE 2k
+ DOS_WHITE_LIST 127.0.0.1,10.30.0.0/16
  LOG_FILE webserver_ssl$1.log
  LOG_FILE_SZ 1M
  LOG_MSG_SIZE -1
@@ -120,6 +121,8 @@ userver {
  PLUGIN_DIR ../../../src/ulib/net/server/plugin/.libs
  ORM_DRIVER_DIR ../../../src/ulib/orm/driver/.libs
  PREFORK_CHILD $N
+ CRASH_COUNT 1
+ CRASH_EMAIL_NOTIFY mail.unirel.com:stefano.casazza@unirel.com
  CERT_FILE ../../ulib/CA/server.crt
   KEY_FILE ../../ulib/CA/server.key
  PASSWORD caciucco
@@ -135,7 +138,7 @@ http {
  DIGEST_AUTHENTICATION no
  APACHE_LIKE_LOG /var/log/httpd/access_log
  CACHE_FILE_MASK inp/http/data/file1|*.flv|*.svgz
- CACHE_AVOID_MASK www.sito1.com|ruby
+ CACHE_AVOID_MASK www.sito1.com/inp|ruby
 }
 EOF
 }
@@ -153,18 +156,18 @@ if [ $? -ne 0 ]; then
    echo localhost www.sito2.com	>> /etc/hosts 2>/dev/null
 fi
 
-mkdir -p $DOC_ROOT/benchmark/docroot $DOC_ROOT/www.sito1.com/benchmark/docroot
+mkdir $DOC_ROOT/www.sito1.com
 
-creat_link ../ok											 $DOC_ROOT/ok
-creat_link ../tmp											 $DOC_ROOT/tmp
-creat_link ../uploads									 $DOC_ROOT/uploads
-creat_link ../../../benchmark/docroot/servlet	 $DOC_ROOT/benchmark/docroot/servlet
-creat_link ../../inp										 $DOC_ROOT/www.sito1.com/inp
-creat_link ../../tmp									    $DOC_ROOT/www.sito1.com/tmp
-creat_link ../SSI											 $DOC_ROOT/www.sito1.com/SSI
-creat_link ../cgi-bin									 $DOC_ROOT/www.sito1.com/cgi-bin
-creat_link ../../uploads								 $DOC_ROOT/www.sito1.com/uploads
-creat_link ../../../../benchmark/docroot/servlet $DOC_ROOT/www.sito1.com/benchmark/docroot/servlet
+creat_link ../ok									 $DOC_ROOT/ok
+creat_link ../tmp									 $DOC_ROOT/tmp
+creat_link ../uploads							 $DOC_ROOT/uploads
+creat_link ../benchmark/docroot/servlet    $DOC_ROOT/servlet
+creat_link ../../inp								 $DOC_ROOT/www.sito1.com/inp
+creat_link ../../tmp								 $DOC_ROOT/www.sito1.com/tmp
+creat_link ../SSI									 $DOC_ROOT/www.sito1.com/SSI
+creat_link ../cgi-bin							 $DOC_ROOT/www.sito1.com/cgi-bin
+creat_link ../../uploads						 $DOC_ROOT/www.sito1.com/uploads
+creat_link ../../benchmark/docroot/servlet $DOC_ROOT/www.sito1.com/servlet
 
 touch vuoto.txt $DOC_ROOT/vuoto.txt $DOC_ROOT/www.sito1.com/vuoto.txt
 cat << EOF >tmp/c

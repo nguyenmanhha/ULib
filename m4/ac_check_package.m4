@@ -26,7 +26,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			fi
 		done
 		if test x_$found_libz != x_yes; then
-			msg="Cannot find LIBZ library";
+			msg="Cannot find libz library";
 			if test $wanted = 1; then
 				AC_MSG_ERROR($msg)
 			else
@@ -108,6 +108,59 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 	fi
 	], [AC_MSG_RESULT(no)])
 
+	AC_MSG_CHECKING(if brotli library is wanted)
+	wanted=1;
+	if test -z "$with_libbrotli" ; then
+		wanted=0;
+		if test -n "$CROSS_ENVIRONMENT" -o "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO" -o "$enable_shared" = "no"; then
+			with_libbrotli="no";
+		else
+			with_libbrotli="${CROSS_ENVIRONMENT}/usr";
+		fi
+	fi
+	AC_ARG_WITH(libbrotli, [  --with-libbrotli        use system   brotli library - [[will check /usr /usr/local]] [[default=use if present]]], [
+	if test "$withval" = "no"; then
+		AC_MSG_RESULT(no)
+	else
+		AC_MSG_RESULT(yes)
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+			libbrotlidir="$dir"
+			if test -f "$dir/include/brotli/encode.h"; then
+				found_libbrotli="yes";
+				break;
+			fi
+		done
+		if test x_$found_libbrotli != x_yes; then
+			msg="Cannot find libbrotli library";
+			if test $wanted = 1; then
+				AC_MSG_ERROR($msg)
+			else
+				AC_MSG_RESULT($msg)
+			fi
+		else
+			echo "${T_MD}libbrotli found in $libbrotlidir${T_ME}"
+			USE_LIBBROTLI=yes
+			AC_DEFINE(USE_LIBBROTLI, 1, [Define if enable libbrotli support])
+
+			if test -z "$CROSS_ENVIRONMENT" -a x_$PKG_CONFIG != x_no; then
+				libbrotli_version=$(pkg-config --modversion libbrotlienc 2>/dev/null)
+			fi
+			if test -z "${libbrotli_version}"; then
+				libbrotli_version=$(ls $libbrotlidir/lib*/libbrotli*.so.*.* 2>/dev/null | head -n 1 | awk -F'.so.' '{n=2; print $n}' 2>/dev/null)
+			fi
+			if test -z "${libzopfli_version}"; then
+				libzopfli_version="unknown"
+			fi
+         ULIB_LIBS="$ULIB_LIBS -lbrotlidec -lbrotlienc";
+			if test $libbrotlidir != "${CROSS_ENVIRONMENT}/" -a $libbrotlidir != "${CROSS_ENVIRONMENT}/usr" -a $libbrotlidir != "${CROSS_ENVIRONMENT}/usr/local"; then
+				CPPFLAGS="$CPPFLAGS -I$libbrotlidir/include"
+				LDFLAGS="$LDFLAGS -L$libbrotlidir/lib -Wl,-R$libbrotlidir/lib";
+				PRG_LDFLAGS="$PRG_LDFLAGS -L$libbrotlidir/lib";
+			fi
+		fi
+	fi
+	], [AC_MSG_RESULT(no)])
+
 	AC_MSG_CHECKING(if MAGIC library is wanted)
 	wanted=1;
 	if test -z "$with_magic" ; then
@@ -131,7 +184,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			fi
 		done
 		if test x_$found_magic != x_yes; then
-			msg="Cannot find MAGIC library"
+			msg="Cannot find libmagic library"
 			if test $wanted = 1; then
 				AC_MSG_ERROR($msg)
 			else
@@ -189,7 +242,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			fi
 		done
 		if test x_$found_ssl != x_yes; then
-			msg="Cannot find SSL library";
+			msg="Cannot find libssl library";
 			if test $wanted = 1; then
 				AC_MSG_ERROR($msg)
 			else
@@ -256,7 +309,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			fi
 		done
 		if test x_$found_pcre != x_yes; then
-			msg="Cannot find PCRE library";
+			msg="Cannot find libpcre library";
 			if test $wanted = 1; then
 				AC_MSG_ERROR($msg)
 			else
@@ -303,7 +356,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			fi
 		done
 		if test x_$found_expat != x_yes; then
-			msg="Cannot find EXPAT library"
+			msg="Cannot find libexpat library"
 			if test $wanted = 1; then
 				AC_MSG_ERROR($msg)
 			else
@@ -353,7 +406,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			fi
 		done
 		if test x_$found_libuuid != x_yes; then
-			msg="Cannot find LIBUUID library";
+			msg="Cannot find libuuid library";
 			if test $wanted = 1; then
 				AC_MSG_ERROR($msg)
 			else
@@ -386,7 +439,8 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 		with_curl="no";
 	fi
 
-   AC_ARG_ENABLE(curl-staticlib-deps, [  --enable-curl-staticlib-deps link with dependencies of    cURL's static libraries. Must be specified in addition to --with-curl [[default=no]]])
+   AC_ARG_ENABLE(curl-staticlib-deps,
+		[  --enable-curl-staticlib-deps link with dependencies of    cURL's static libraries. Must be specified in addition to --with-curl [[default=no]]])
    if test -z "$enable_curl_staticlib_deps"; then
       enable_curl_staticlib_deps="no"
    fi
@@ -404,7 +458,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			fi
 		done
 		if test x_$found_curl != x_yes; then
-			AC_MSG_ERROR(Cannot find cURL library)
+			AC_MSG_ERROR(Cannot find libcurl library)
 		else
 			echo "${T_MD}libcurl found in $curldir${T_ME}"
 			USE_LIBCURL=yes
@@ -497,7 +551,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			fi
 		done
 		if test x_$found_cares != x_yes; then
-			msg="Cannot find c-ares library";
+			msg="Cannot find libcares library";
 			if test $wanted = 1; then
 				AC_MSG_ERROR($msg)
 			else
@@ -542,7 +596,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			fi
 		done
 		if test x_$found_ssh != x_yes; then
-			AC_MSG_ERROR(Cannot find SSH library)
+			AC_MSG_ERROR(Cannot find libssh library)
 		else
 			echo "${T_MD}libssh found in $sshdir${T_ME}"
 			USE_LIBSSH=yes
@@ -599,7 +653,7 @@ dnl		libssh_version=$(grep LIBSFTP_VERSION $sshdir/include/libssh/sftp.h | cut -
 			fi
 		done
 		if test x_$found_ldap != x_yes; then
-			AC_MSG_ERROR(Cannot find LDAP include)
+			AC_MSG_ERROR(Cannot find libldap include)
 		else
 			echo "${T_MD}libldap found in $ldapdir${T_ME}"
 			USE_LIBLDAP=yes
@@ -642,7 +696,7 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 			fi
 		done
 		if test x_$found_dbi != x_yes; then
-			AC_MSG_ERROR(Cannot find DBI library)
+			AC_MSG_ERROR(Cannot find libdbi library)
 		else
 			echo "${T_MD}libdbi found in $dbidir${T_ME}"
 			USE_LIBDBI=yes
@@ -666,13 +720,13 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 	fi
 	], [AC_MSG_RESULT(no)])
 
-	AC_MSG_CHECKING(if libevent library is wanted)
+	AC_MSG_CHECKING(if libevent library is wanted (deprecated))
 	wanted=1;
 	if test -z "$with_libevent" ; then
 		wanted=0;
 		with_libevent="no";
 	fi
-	AC_ARG_WITH(libevent, [  --with-libevent         use system libevent library - [[will check /usr /usr/local]]],
+	AC_ARG_WITH(libevent, [  --with-libevent         use system libevent library (deprecated) - [[will check /usr /usr/local]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
@@ -685,7 +739,7 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 			fi
 		done
 		if test x_$found_libevent != x_yes; then
-			AC_MSG_ERROR(Cannot find LIBEVENT library)
+			AC_MSG_ERROR(Cannot find libevent library)
 		else
 			echo "${T_MD}libevent found in $libeventdir${T_ME}"
 			USE_LIBEVENT=yes
@@ -723,7 +777,7 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 			fi
 		done
 		if test x_$found_libxml2 != x_yes; then
-			AC_MSG_ERROR(Cannot find LIBXML2 library)
+			AC_MSG_ERROR(Cannot find libxml2 library)
 		else
 			echo "${T_MD}libxml2 found in $libxml2dir${T_ME}"
 			USE_LIBXML2=yes
@@ -806,26 +860,6 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 	fi
 	], [AC_MSG_RESULT(no)])
 ])
-
-AC_DEFUN([AC_SEARCH_LIBS_VAR],
-[AC_PREREQ([2.13])
-AC_CACHE_CHECK([for library containing $1], [ac_cv_search_$1],
-[ac_func_search_save_LIBS="$LIBS"
-ac_cv_search_$1="no"
-AC_TRY_LINK_FUNC([$1], [ac_cv_search_$1="none required"])
-test "$ac_cv_search_$1" = "no" && for i in $2; do
-LIBS="-l$i $5 $ac_func_search_save_LIBS"
-AC_TRY_LINK_FUNC([$1],
-[ac_cv_search_$1="-l$i"
-break])
-done
-LIBS="$ac_func_search_save_LIBS"])
-if test "$ac_cv_search_$1" != "no"; then
-  test "$ac_cv_search_$1" = "none required" || $6="$$6 $ac_cv_search_$1"
-  $3
-else :
-  $4
-fi])
 
 AC_DEFUN([AC_CHECK_SQLITE3], [
 ac_sqlite3="no"
@@ -932,10 +966,8 @@ else
 
 	if test "$ac_mysql_incdir" = "no"; then
 		MYSQL_INCLUDE=`mysql_config --include`
-		libmysql_version=$(grep LIBMYSQL_VERSION     /usr/include/mysql/mysql_version.h 2>/dev/null | head -n1 | cut -d'"' -f2)
 	else
-		MYSQL_INCLUDE=-I$ac_mysql_incdir
-		libmysql_version=$(grep LIBMYSQL_VERSION $ac_mysql_incdir/mysql/mysql_version.h 2>/dev/null | head -n1 | cut -d'"' -f2)
+		MYSQL_INCLUDE=$ac_mysql_incdir
 	fi
 	if test "$ac_mysql_libdir" = "no"; then
 	   	if test "$ac_mysql_threadsafe" = "YES"; then
@@ -944,7 +976,7 @@ else
 			MYSQL_LIBS="`mysql_config --libs`"
 		fi
 	else
-	   	if test "$ac_mysql_threadsafe" = "YES"; then
+	  	if test "$ac_mysql_threadsafe" = "YES"; then
 			MYSQL_LIBS="-L$ac_mysql_libdir -lmysqlclient_r"
 		else
 			MYSQL_LIBS="-L$ac_mysql_libdir -lmysqlclient"
@@ -953,6 +985,8 @@ else
 
 	USE_MYSQL=yes
 	AC_DEFINE(USE_MYSQL, 1, [Define if enable MySQL database support])
+	libmysql_version=`mysql_config --version`
+
 	if test -z "${libmysql_version}"; then
 		libmysql_version="unknown"
 	fi
@@ -967,71 +1001,5 @@ else
 	AC_SUBST(MYSQL_LDFLAGS)
 
 	AM_CONDITIONAL(HAVE_MYSQL, true)
-fi
-])
-
-AC_DEFUN([AC_CHECK_PGSQL], [
-ac_pgsql="no"
-ac_pgsql_incdir="no"
-ac_pgsql_libdir="no"
-
-# exported variables
-PGSQL_LIBS=""
-PGSQL_LDFLAGS=""
-PGSQL_INCLUDE=""
-
-AC_MSG_CHECKING(for PostgreSQL support)
-
-AC_ARG_WITH(pgsql,
-	[  --with-pgsql            Include PostgreSQL support],
-	[  ac_pgsql="$withval" ])
-AC_ARG_WITH(pgsql-incdir,
-	[  --with-pgsql-incdir     Specifies where the PostgreSQL include files are],
-	[  ac_pgsql_incdir="$withval" ])
-AC_ARG_WITH(pgsql-libdir,
-	[  --with-pgsql-libdir     Specifies where the PostgreSQL libraries are],
-	[  ac_pgsql_libdir="$withval" ])
-
-if test "$ac_pgsql" != "yes"; then
-	AC_MSG_RESULT(no)
-	AM_CONDITIONAL(HAVE_PGSQL, false)
-else
-	AC_MSG_RESULT([yes])
-	if test "$ac_pgsql_incdir" = "no" || test "$ac_pgsql_libdir" = "no"; then
-	   	AC_CHECK_PROG([PG_CONFIG], [pg_config], [yes], [no])
-		if test "$PG_CONFIG" = "no"; then
-		   AC_MSG_ERROR([cannot auto-configure PostgreSQL without pg_config])
-		fi
-	fi
-	if test "$ac_pgsql_incdir" = "no"; then
-		PGSQL_INCLUDE="-I"`pg_config --includedir`" -I"`pg_config --includedir-server`
-	else
-		PGSQL_INCLUDE=-I$ac_pgsql_incdir
-	fi
-	if test "$ac_pgsql_libdir" = "no"; then
-		PGSQL_LDFLAGS="-L"`pg_config --libdir`
-	else
-		PGSQL_LDFLAGS=-L$ac_pgsql_libdir
-	fi
-
-	PGSQL_LIBS="-lpq -lpgport"
-
-	USE_PGSQL=yes
-	AC_DEFINE(USE_PGSQL, 1, [Define if enable PostgreSQL database support])
-	pgsql_version=$(pg_config --version 2>/dev/null | cut -d' ' -f2)
-	if test -z "${pgsql_version}"; then
-		pgsql_version="unknown"
-	fi
-
-	AC_MSG_CHECKING(for PostgreSQL includes)
-	AC_MSG_RESULT($PGSQL_INCLUDE)
-	AC_MSG_CHECKING(for PostgreSQL libraries)
-	AC_MSG_RESULT($PGSQL_LIBS)
-	
-	AC_SUBST(PGSQL_LIBS)
-	AC_SUBST(PGSQL_INCLUDE)
-	AC_SUBST(PGSQL_LDFLAGS)
-
-	AM_CONDITIONAL(HAVE_PGSQL, true)
 fi
 ])

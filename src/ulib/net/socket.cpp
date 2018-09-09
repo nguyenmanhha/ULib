@@ -32,11 +32,21 @@ U_DUMP_KERNEL_VERSION(LINUX_VERSION_CODE)
 #  include <ulib/ssl/net/sslsocket.h>
 #endif
 
-#ifdef HAVE_SYS_IOCTL_H
-#  include <sys/ioctl.h>
+#if defined(U_LINUX) && (!defined(U_SERVER_CAPTIVE_PORTAL) || defined(ENABLE_THREAD)) && !defined(HAVE_OLD_IOSTREAM)
+#  include <linux/filter.h>
+# ifdef USE_FSTACK
+#  include <ff_epoll.h>
+# endif
 #endif
-#ifdef HAVE_ARPA_INET_H
-#  include <net/if_arp.h>
+
+#ifdef USE_FSTACK
+#  undef sockaddr 
+#endif
+
+#include "socket_address.cpp"
+
+#ifdef USE_FSTACK
+#  define sockaddr linux_sockaddr
 #endif
 
 int            USocket::incoming_cpu = -1;
@@ -46,17 +56,13 @@ bool           USocket::breuseport;
 bool           USocket::bincoming_cpu;
 SocketAddress* USocket::cLocal;
 
-#include "socket_address.cpp"
-
 void USocket::setAddress(void* address)
 {
    U_TRACE(0, "USocket::setAddress(%p)", address)
 
-   U_INTERNAL_ASSERT_POINTER(cLocal)
-
    cLocalAddress.setAddress(address, (bool)U_socket_IPv6(this));
 
-   cLocal->setIPAddress(cLocalAddress);
+   if (cLocal) cLocal->setIPAddress(cLocalAddress);
 
    U_socket_LocalSet(this) = true;
 }
@@ -74,7 +80,7 @@ void USocket::setLocal(const UIPAddress& addr)
 
 USocket::USocket(bool bSocketIsIPv6)
 {
-   U_TRACE_REGISTER_OBJECT(0, USocket, "%b", bSocketIsIPv6)
+   U_TRACE_CTOR(0, USocket, "%b", bSocketIsIPv6)
 
    flags       = O_RDWR;
    iState      = CLOSE;
@@ -128,7 +134,7 @@ void USocket::_socket(int iSocketType, int domain, int protocol)
    fh        = U_SYSCALL(socket, "%d,%d,%d", domain, iSocketType, protocol);
    iSockDesc = _open_osfhandle((long)fh, O_RDWR | O_BINARY);
 #else
-   iSockDesc = U_SYSCALL(socket, "%d,%d,%d", domain, iSocketType, protocol);
+   iSockDesc = U_FF_SYSCALL(socket, "%d,%d,%d", domain, iSocketType, protocol);
 #endif
 
    if (isOpen())
@@ -184,95 +190,37 @@ bool USocket::checkTime(long time_limit, long& timeout)
    U_RETURN(true);
 }
 
+void USocket::setLocalInfo(USocket* p, SocketAddress* pLocal)
+{
+   U_TRACE(0, "USocket::setLocalInfo(%p,%p)", p, pLocal)
+
+   p->iLocalPort = pLocal->getPortNumber();
+                   pLocal->getIPAddress(p->cLocalAddress);
+}
+
+void USocket::setRemoteInfo(USocket* p, SocketAddress* cRemote)
+{
+   U_TRACE(0, "USocket::setRemoteInfo(%p,%p)", p, cRemote)
+
+   p->iRemotePort = cRemote->getPortNumber();
+                    cRemote->getIPAddress(p->cRemoteAddress);
+}
+
 void USocket::setLocal()
 {
    U_TRACE_NO_PARAM(1, "USocket::setLocal()")
 
    U_CHECK_MEMORY
 
-   SocketAddress tmp;
+   SocketAddress local;
+   socklen_t slDummy = local.sizeOf();
 
-   socklen_t slDummy = tmp.sizeOf();
-
-   if (U_SYSCALL(getsockname, "%d,%p,%p", getFd(), (sockaddr*)tmp, &slDummy) == 0)
+   if (U_FF_SYSCALL(getsockname, "%d,%p,%p", getFd(), (sockaddr*)local, &slDummy) == 0)
       {
-      iLocalPort = tmp.getPortNumber();
-                   tmp.getIPAddress(cLocalAddress);
+      setLocalInfo(this, &local);
 
       U_socket_LocalSet(this) = true;
       }
-}
-
-UString USocket::getMacAddress(const char* device)
-{
-   U_TRACE(1, "USocket::getMacAddress(%S)", device)
-
-   U_INTERNAL_ASSERT_POINTER(device)
-
-   UString result(100U);
-
-#if defined(U_LINUX) && defined(HAVE_SYS_IOCTL_H) && defined(HAVE_ARPA_INET_H)
-   U_INTERNAL_ASSERT(isOpen())
-
-   /**
-    * ARP ioctl request
-    *
-    * struct arpreq {
-    *    struct sockaddr arp_pa;       // Protocol address
-    *    struct sockaddr arp_ha;       // Hardware address
-    *    int arp_flags;                // Flags
-    *    struct sockaddr arp_netmask;  // Netmask (only for proxy arps)
-    *    char arp_dev[16];
-    * };
-    */
-
-   struct arpreq arpreq;
-
-   (void) U_SYSCALL(memset, "%p,%d,%u", &arpreq, 0, sizeof(arpreq));
-
-   union uupsockaddr {
-      struct sockaddr*    p;
-      struct sockaddr_in* psin;
-   };
-
-   union uupsockaddr u = { &arpreq.arp_pa };
-
-   // arp_pa must be an AF_INET address
-   // arp_ha must have the same type as the device which is specified in arp_dev
-   // arp_dev is a zero-terminated string which names a device
-
-   u.psin->sin_family      = AF_INET;
-   u.psin->sin_addr.s_addr = cRemoteAddress.getInAddr();
-   arpreq.arp_ha.sa_family = AF_INET;
-
-   (void) u__strncpy(arpreq.arp_dev, device, 15);
-
-   if (U_SYSCALL(ioctl, "%d,%d,%p", iSockDesc, SIOCGARP, &arpreq) == 0)
-      {
-      if ((arpreq.arp_flags & ATF_COM) != 0)
-         {
-         unsigned char* hwaddr = (unsigned char*)arpreq.arp_ha.sa_data;
-
-         result.snprintf(U_CONSTANT_TO_PARAM("%02x:%02x:%02x:%02x:%02x:%02x"),
-            hwaddr[0] & 0xFF,
-            hwaddr[1] & 0xFF,
-            hwaddr[2] & 0xFF,
-            hwaddr[3] & 0xFF,
-            hwaddr[4] & 0xFF,
-            hwaddr[5] & 0xFF);
-
-         /**
-          * if (arpreq.arp_flags & ATF_PERM)        printf("PERM");
-          * if (arpreq.arp_flags & ATF_PUBL)        printf("PUBLISHED");
-          * if (arpreq.arp_flags & ATF_USETRAILERS) printf("TRAILERS");
-          * if (arpreq.arp_flags & ATF_PROXY)       printf("PROXY");
-          */
-         }
-      // else printf("*** INCOMPLETE ***");
-      }
-#endif
-
-   U_RETURN_STRING(result);
 }
 
 /**
@@ -293,13 +241,13 @@ bool USocket::bind()
    int result, counter = 0;
 
 loop:
-   result = U_SYSCALL(bind, "%d,%p,%d", getFd(), (sockaddr*)&(cLocal->addr.psaGeneric), cLocal->sizeOf());
+   result = U_FF_SYSCALL(bind, "%d,%p,%d", getFd(), (sockaddr*)(*cLocal), cLocal->sizeOf());
 
    if (result == -1         &&
        errno  == EADDRINUSE &&
        ++counter <= 3)
       {
-      UTimeVal::nanosleep(1L);
+      UTimeVal::nanosleep(1000L);
 
       goto loop;
       }
@@ -389,8 +337,8 @@ bool USocket::setServer(unsigned int port, void* localAddress)
 
       (void) UFile::_unlink(UUnixSocket::path);
 
-      if (U_SYSCALL(bind, "%d,%p,%d", iSockDesc, &(UUnixSocket::addr.psaGeneric), UUnixSocket::len) == 0 &&
-          U_SYSCALL(listen, "%d,%d",  iSockDesc,                                          iBackLog) == 0)
+      if (U_FF_SYSCALL(bind, "%d,%p,%d", iSockDesc, &(UUnixSocket::addr.psaGeneric), UUnixSocket::len) == 0 &&
+          U_FF_SYSCALL(listen, "%d,%d",  iSockDesc,                                          iBackLog) == 0)
          {
           iLocalPort =
          iRemotePort = port;
@@ -404,23 +352,6 @@ bool USocket::setServer(unsigned int port, void* localAddress)
       }
 #endif
 
-   if (isUDP())
-      {
-      ((uusockaddr*)localAddress)->psaIP4Addr.sin_port = htons(port);
-
-      if (U_SYSCALL(bind, "%d,%p,%d", iSockDesc, &(((uusockaddr*)localAddress)->psaGeneric), sizeof(uusockaddr)) == 0)
-         {
-          iLocalPort =
-         iRemotePort = port;
-
-         U_socket_LocalSet(this) = true;
-
-         U_RETURN(true);
-         }
-
-      U_RETURN(false);
-      }
-   
    setReusePort();
 
    U_INTERNAL_DUMP("cLocal = %p", cLocal)
@@ -490,8 +421,7 @@ bool USocket::setServer(unsigned int port, void* localAddress)
    U_INTERNAL_DUMP("breuseport = %b", breuseport)
 
    if (breuseport ||
-       (bind()    &&
-        U_SYSCALL(listen, "%d,%d", iSockDesc, iBackLog) == 0))
+       (bind() && listen()))
       {
       U_RETURN(true);
       }
@@ -501,18 +431,53 @@ bool USocket::setServer(unsigned int port, void* localAddress)
    U_RETURN(false);
 }
 
+#if defined(U_LINUX) && (!defined(U_SERVER_CAPTIVE_PORTAL) || defined(ENABLE_THREAD)) && !defined(HAVE_OLD_IOSTREAM)
+bool USocket::enable_bpf()
+{
+   U_TRACE_NO_PARAM(0, "USocket::enable_bpf()")
+
+   /**
+    * Author: Jesper Dangaard Brouer <netoptimizer@brouer.com>, (C)2014-2016
+    * From: https://github.com/netoptimizer/network-testing
+    */
+
+   struct sock_filter code[] = {
+      /* A = raw_smp_processor_id() */
+      { BPF_LD  | BPF_W | BPF_ABS, 0, 0, (unsigned int)(SKF_AD_OFF + SKF_AD_CPU) },
+      /* return A */
+      { BPF_RET | BPF_A, 0, 0, 0 }
+   };
+
+   struct sock_fprog p = {
+      .len = 2,
+      .filter = code,
+   };
+
+   /**
+    * the kernel will call the specified filter to distribute the packets among the SO_REUSEPORT sockets group.
+    * Only the first socket in the group can set such filter. The filter implemented here distributes the ingress
+    * packets to the socket with the id equal to the CPU id processing the packet inside the kernel. With RSS in
+    * place and 1 to 1 mapping between ingress NIC RX queues and NIC's irqs, this maps 1 to 1 between ingress NIC
+    * RX queues and REUSEPORT sockets
+    */
+
+   if (setSockOpt(SOL_SOCKET, SO_ATTACH_REUSEPORT_CBPF, (void*)&p, sizeof(p))) U_RETURN(true);
+
+   U_RETURN(false);
+}
+#endif
+
 void USocket::reusePort(int _flags)
 {
    U_TRACE(1, "USocket::reusePort(%d)", _flags)
 
    U_CHECK_MEMORY
 
-#if !defined(U_SERVER_CAPTIVE_PORTAL) && defined(U_LINUX)
+#ifdef U_LINUX
    U_INTERNAL_DUMP("breuseport = %b", breuseport)
 
    if (breuseport)
       {
-      U_ASSERT_EQUALS(isUDP(), false)
       U_ASSERT_EQUALS(isIPC(), false)
 
       int old         = iSockDesc,
@@ -522,7 +487,7 @@ void USocket::reusePort(int _flags)
 
 #  ifndef U_COVERITY_FALSE_POSITIVE // NEGATIVE_RETURNS
       // coverity[+alloc]
-      iSockDesc = U_SYSCALL(socket, "%d,%d,%d", domain, iSocketType, 0);
+      iSockDesc = U_FF_SYSCALL(socket, "%d,%d,%d", domain, iSocketType, 0);
 #  endif
 
       U_INTERNAL_DUMP("iLocalPort = %u cLocal->getPortNumber() = %u", iLocalPort, cLocal->getPortNumber())
@@ -533,16 +498,23 @@ void USocket::reusePort(int _flags)
       if (isClosed()                                                           ||
           (setReuseAddress(), setReusePort(),
            cLocal->setIPAddressWildCard(U_socket_IPv6(this)), bind()) == false ||
-          U_SYSCALL(listen, "%d,%d", iSockDesc, iBackLog) != 0)
+          listen() == false)
          {
-         U_ERROR("SO_REUSEPORT failed, port %d", iLocalPort);
+         U_ERROR("SO_REUSEPORT failed, port %u", iLocalPort);
          }
 
-#  if defined(SO_INCOMING_CPU) && !defined(U_COVERITY_FALSE_POSITIVE)
+#  if (!defined(U_SERVER_CAPTIVE_PORTAL) || defined(ENABLE_THREAD)) && !defined(HAVE_OLD_IOSTREAM)
+      if (enable_bpf() == false) // Enable BPF filtering to distribute the ingress packets among the SO_REUSEPORT sockets
+         {
+         U_WARNING("SO_ATTACH_REUSEPORT_CBPF failed, port %u", iLocalPort);
+         }
+
+#    if defined(SO_INCOMING_CPU) && !defined(U_COVERITY_FALSE_POSITIVE)
       if (incoming_cpu != -1) bincoming_cpu = setSockOpt(SOL_SOCKET, SO_INCOMING_CPU, (void*)&incoming_cpu);
+#    endif
 #  endif
 
-      (void) U_SYSCALL(close, "%d", old);
+      (void) U_FF_SYSCALL(close, "%d", old);
       }
 #endif
 
@@ -560,14 +532,9 @@ void USocket::setRemote()
    U_INTERNAL_ASSERT(isOpen())
 
    SocketAddress cRemote;
-
    socklen_t slDummy = cRemote.sizeOf();
 
-   if (U_SYSCALL(getpeername, "%d,%p,%p", getFd(), (sockaddr*)cRemote, &slDummy) == 0)
-      {
-      iRemotePort = cRemote.getPortNumber();
-                    cRemote.getIPAddress(cRemoteAddress);
-      }
+   if (U_FF_SYSCALL(getpeername, "%d,%p,%p", getFd(), (sockaddr*)cRemote, &slDummy) == 0) setRemoteInfo(this, &cRemote);
 }
 
 bool USocket::connect()
@@ -587,7 +554,7 @@ bool USocket::connect()
    setTcpFastOpen();
 
 loop:
-   result = U_SYSCALL(connect, "%d,%p,%d", getFd(), (sockaddr*)cServer, cServer.sizeOf());
+   result = U_FF_SYSCALL(connect, "%d,%p,%d", getFd(), (sockaddr*)cServer, cServer.sizeOf());
 
    if (result == 0)
       {
@@ -607,9 +574,7 @@ loop:
 
    if (errno == EISCONN)
       {
-      _close_socket();
-
-      _socket();
+      reOpen();
 
       goto loop;
       }
@@ -627,15 +592,13 @@ int USocket::recvFrom(void* pBuffer, uint32_t iBufLength, uint32_t uiFlags, UIPA
 
    int iBytesRead;
    SocketAddress cSource;
-
    socklen_t slDummy = cSource.sizeOf();
 
-loop:
-   iBytesRead = U_SYSCALL(recvfrom, "%d,%p,%u,%u,%p,%p", getFd(), CAST(pBuffer), iBufLength, uiFlags, (sockaddr*)cSource, &slDummy);
+   iBytesRead = U_FF_SYSCALL(recvfrom, "%d,%p,%u,%u,%p,%p", getFd(), CAST(pBuffer), iBufLength, uiFlags, (sockaddr*)cSource, &slDummy);
 
    if (iBytesRead > 0)
       {
-      U_INTERNAL_DUMP("BytesRead(%d) = %#.*S", iBytesRead, iBytesRead, CAST(pBuffer))
+      U_INTERNAL_DUMP("BytesRead(%u) = %#.*S", iBytesRead, iBytesRead, CAST(pBuffer))
 
       iSourcePortNumber = cSource.getPortNumber();
                           cSource.getIPAddress(cSourceIP);
@@ -643,12 +606,7 @@ loop:
       U_RETURN(iBytesRead);
       }
 
-   if (errno == EINTR)
-      {
-      UInterrupt::checkForEventSignalPending();
-
-      goto loop;
-      }
+   if (errno == EINTR) UInterrupt::checkForEventSignalPending(); // NB: we never restart recvfrom(), in general the socket server is NOT blocking...
 
    U_RETURN(-1);
 }
@@ -668,11 +626,11 @@ int USocket::sendTo(void* pPayload, uint32_t iPayloadLength, uint32_t uiFlags, U
    cDestination.setPortNumber(iDestinationPortNumber);
 
 loop:
-   iBytesWrite = U_SYSCALL(sendto, "%d,%p,%u,%u,%p,%d", getFd(), CAST(pPayload), iPayloadLength, uiFlags, (sockaddr*)cDestination, cDestination.sizeOf());
+   iBytesWrite = U_FF_SYSCALL(sendto, "%d,%p,%u,%u,%p,%d", getFd(), CAST(pPayload), iPayloadLength, uiFlags, (sockaddr*)cDestination, cDestination.sizeOf());
 
    if (iBytesWrite > 0)
       {
-      U_INTERNAL_DUMP("BytesWrite(%d) = %#.*S", iBytesWrite, iBytesWrite, CAST(pPayload))
+      U_INTERNAL_DUMP("BytesWrite(%u) = %#.*S", iBytesWrite, iBytesWrite, CAST(pPayload))
 
       U_RETURN(iBytesWrite);
       }
@@ -755,7 +713,7 @@ void USocket::setBlocking()
 
    flags &= ~O_NONBLOCK;
 
-   (void) U_SYSCALL(fcntl, "%d,%d,%d", getFd(), F_SETFL, flags);
+   (void) U_FF_SYSCALL(fcntl, "%d,%d,%d", getFd(), F_SETFL, flags);
 
    U_INTERNAL_DUMP("O_NONBLOCK = %B, flags = %B", O_NONBLOCK, flags)
 }
@@ -771,7 +729,7 @@ void USocket::setNonBlocking()
 
    flags |= O_NONBLOCK;
 
-   (void) U_SYSCALL(fcntl, "%d,%d,%d", getFd(), F_SETFL, flags);
+   (void) U_FF_SYSCALL(fcntl, "%d,%d,%d", getFd(), F_SETFL, flags);
 
    U_INTERNAL_DUMP("O_NONBLOCK = %B, flags = %B", O_NONBLOCK, flags)
 }
@@ -784,17 +742,13 @@ void USocket::_close_socket()
 
    U_INTERNAL_ASSERT(isOpen())
 
-#ifdef U_SERVER_CAPTIVE_PORTAL
-   (void) U_SYSCALL(shutdown, "%d,%d", iSockDesc, SHUT_WR);
-#endif
-
 #ifdef _MSWINDOWS_
    (void) U_SYSCALL(closesocket, "%d", fh);
                                        fh = -1;
 #elif defined(DEBUG)
-   if (U_SYSCALL(   close, "%d", iSockDesc)) U_ERROR_SYSCALL("closesocket");
+   if (U_FF_SYSCALL(   close, "%d", iSockDesc)) U_ERROR_SYSCALL("close");
 #else
-   (void) U_SYSCALL(close, "%d", iSockDesc);
+   (void) U_FF_SYSCALL(close, "%d", iSockDesc);
 #endif
 
    iSockDesc   = -1;
@@ -863,16 +817,19 @@ void USocket::close_socket()
             (void) UFile::setBlocking(iSockDesc, flags, true);
             }
          }
-      while ((U_SYSCALL(recv, "%d,%p,%u,%d", getFd(), _buf, sizeof(_buf), 0) > 0) ||
+      while ((U_FF_SYSCALL(recv, "%d,%p,%u,%d", getFd(), _buf, sizeof(_buf), 0) > 0) ||
              (errno == EAGAIN && UNotifier::waitForRead(iSockDesc, 500) > 0));
       }
 
    // NB: to avoid epoll_wait() fire events on file descriptor already closed...
 
 #if defined(HAVE_EPOLL_WAIT) && !defined(USE_LIBEVENT)
-   if (UNotifier::isHandler(iSockDesc))
+   U_INTERNAL_DUMP("U_ClientImage_parallelization = %d", U_ClientImage_parallelization)
+
+   if (U_ClientImage_parallelization != U_PARALLELIZATION_CHILD &&
+       UNotifier::isHandler(iSockDesc))
       {
-      (void) U_SYSCALL(epoll_ctl, "%d,%d,%d,%p", UNotifier::epollfd, EPOLL_CTL_DEL, iSockDesc, (struct epoll_event*)1);
+      (void) U_FF_SYSCALL(epoll_ctl, "%d,%d,%d,%p", UNotifier::epollfd, EPOLL_CTL_DEL, iSockDesc, (struct epoll_event*)1);
 
       UNotifier::handlerDelete(iSockDesc, EPOLLIN | EPOLLRDHUP);
       }
@@ -893,17 +850,16 @@ bool USocket::acceptClient(USocket* pcNewConnection)
    U_INTERNAL_ASSERT_POINTER(pcNewConnection)
 
    SocketAddress cRemote;
-
    socklen_t slDummy = cRemote.sizeOf();
 
-#ifdef HAVE_ACCEPT4
+#if defined(HAVE_ACCEPT4) && !defined(USE_FSTACK)
        pcNewConnection->iSockDesc  = U_SYSCALL(accept4, "%d,%p,%p,%d", iSockDesc, (sockaddr*)cRemote, &slDummy, accept4_flags);
 // if (pcNewConnection->iSockDesc != -1 || errno != ENOSYS) goto next;
 #elif defined(_MSWINDOWS_)
    pcNewConnection->fh        = U_SYSCALL(accept, "%d,%p,%p", fh, (sockaddr*)cRemote, &slDummy);
    pcNewConnection->iSockDesc = _open_osfhandle((long)(pcNewConnection->fh), O_RDWR | O_BINARY);
 #else
-   pcNewConnection->iSockDesc = U_SYSCALL(accept, "%d,%p,%p", iSockDesc, (sockaddr*)cRemote, &slDummy);
+   pcNewConnection->iSockDesc = U_FF_SYSCALL(accept, "%d,%p,%p", iSockDesc, (sockaddr*)cRemote, &slDummy);
 #endif
 //next:
    // -------------------------------------------------------------------------------------------------------
@@ -914,19 +870,18 @@ bool USocket::acceptClient(USocket* pcNewConnection)
       {
       pcNewConnection->iState = CONNECT;
 
-      pcNewConnection->iRemotePort = cRemote.getPortNumber();
-                                     cRemote.getIPAddress( pcNewConnection->cRemoteAddress);
+      setRemoteInfo(pcNewConnection, &cRemote);
 
       U_INTERNAL_DUMP("pcNewConnection->iSockDesc = %d pcNewConnection->flags = %d %B",
                        pcNewConnection->iSockDesc, pcNewConnection->flags, pcNewConnection->flags)
 
       U_INTERNAL_ASSERT_EQUALS(U_socket_IPv6(pcNewConnection), (cRemoteAddress.getAddressFamily() == AF_INET6))
-      
-#  ifdef HAVE_ACCEPT4
+     
+#  if defined(HAVE_ACCEPT4) && !defined(USE_FSTACK)
       U_INTERNAL_ASSERT_EQUALS(((accept4_flags & SOCK_CLOEXEC)  != 0),((pcNewConnection->flags & O_CLOEXEC)  != 0))
       U_INTERNAL_ASSERT_EQUALS(((accept4_flags & SOCK_NONBLOCK) != 0),((pcNewConnection->flags & O_NONBLOCK) != 0))
 #  else
-      if (accept4_flags) (void) U_SYSCALL(fcntl, "%d,%d,%d", pcNewConnection->iSockDesc, F_SETFL, pcNewConnection->flags);
+      if (accept4_flags) (void) U_FF_SYSCALL(fcntl, "%d,%d,%d", pcNewConnection->iSockDesc, F_SETFL, pcNewConnection->flags);
 #  endif
 
 /*
@@ -1033,7 +988,7 @@ void USocket::setMsgError()
 
    if (isSysError())
       {
-      u_errno = errno = -iState;
+      errno = -iState;
 
       (void) u__snprintf(u_buffer, U_BUFFER_SIZE, U_CONSTANT_TO_PARAM("%#R"), 0); // NB: the last argument (0) is necessary...
       }
@@ -1072,7 +1027,7 @@ loop:
       U_INTERNAL_DUMP("now = %1D", u_now->tv_usec)
 #  endif
 
-      result = U_SYSCALL(connect, "%d,%p,%d", getFd(), (sockaddr*)cServer, cServer.sizeOf());
+      result = U_FF_SYSCALL(connect, "%d,%p,%d", getFd(), (sockaddr*)cServer, cServer.sizeOf());
 
       if (result == 0)
          {
@@ -1107,7 +1062,7 @@ ok:      setLocal();
 
                if (error == 0) goto ok;
 
-               iState = -(u_errno = errno = error);
+               iState = -(errno = error);
                }
             else if (result == 0)
                {
@@ -1115,9 +1070,8 @@ ok:      setLocal();
 
                _close_socket();
 
-               iState  = TIMEOUT;
-                 errno =
-               u_errno = ETIMEDOUT;
+                errno = ETIMEDOUT;
+               iState = TIMEOUT;
                }
 
             U_RETURN(false);
@@ -1132,9 +1086,7 @@ ok:      setLocal();
 
          if (errno == EISCONN)
             {
-            _close_socket();
-
-            _socket();
+            reOpen();
 
             goto loop;
             }
@@ -1155,7 +1107,7 @@ int USocket::send(const char* pData, uint32_t iDataLen)
    int iBytesWrite;
 
 loop:
-   iBytesWrite = U_SYSCALL(send, "%d,%p,%u,%u", getFd(), CAST(pData), iDataLen, 0);
+   iBytesWrite = U_FF_SYSCALL(send, "%d,%p,%u,%u", getFd(), CAST(pData), iDataLen, 0);
 
    if (iBytesWrite >= 0)
       {
@@ -1187,7 +1139,7 @@ int USocket::recv(void* pBuffer, uint32_t iBufLength)
    int iBytesRead;
 
 loop:
-   iBytesRead = U_SYSCALL(recv, "%d,%p,%u,%d", getFd(), CAST(pBuffer), iBufLength, 0);
+   iBytesRead = U_FF_SYSCALL(recv, "%d,%p,%u,%d", getFd(), CAST(pBuffer), iBufLength, 0);
 
    if (iBytesRead >= 0)
       {

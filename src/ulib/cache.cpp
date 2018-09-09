@@ -19,7 +19,7 @@
 
 UCache::~UCache()
 {
-   U_TRACE_UNREGISTER_OBJECT(0, UCache)
+   U_TRACE_DTOR(0, UCache)
 
    if (fd != -1)
       {
@@ -39,7 +39,7 @@ U_NO_EXPORT void UCache::init(UFile& _x, uint32_t size, bool bexist, bool brdonl
 
    (void) _x.memmap(PROT_READ | (brdonly ? 0 : PROT_WRITE));
 
-   char* ptr = _x.getMap();
+   char* ptr = _x.resetMap();
 
    info = (cache_info*)ptr;
       x =              ptr + sizeof(UCache::cache_info);

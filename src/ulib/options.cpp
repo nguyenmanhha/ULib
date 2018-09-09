@@ -53,9 +53,14 @@
 #  define LIBZ_ENABLE        "no"
 #endif
 #ifdef USE_LIBZOPFLI
-#  define LIBZOPFLI_ENABLE   "yes ( " _LIBZOPFLI_VERSION " )"
+#  define LIBZOPFLI_ENABLE   "yes ( " _LIBBROTLI_VERSION " )"
 #else
 #  define LIBZOPFLI_ENABLE   "no"
+#endif
+#ifdef USE_LIBBROTLI
+#  define LIBBROTLI_ENABLE   "yes ( " _LIBBROTLI_VERSION " )"
+#else
+#  define LIBBROTLI_ENABLE   "no"
 #endif
 #ifdef USE_LIBTDB
 #  define LIBTDB_ENABLE      "yes ( " _LIBTDB_VERSION " )"
@@ -170,7 +175,7 @@ struct option UOptions::long_options[128] = {
 
 UOptions::UOptions(uint32_t n)
 {
-   U_TRACE_REGISTER_OBJECT(0, UOptions, "%u", n)
+   U_TRACE_CTOR(0, UOptions, "%u", n)
 
    length   = 0;
    item     = (option_item*) UMemoryPool::_malloc(&n, sizeof(option_item));
@@ -179,7 +184,7 @@ UOptions::UOptions(uint32_t n)
 
 UOptions::~UOptions()
 {
-   U_TRACE_UNREGISTER_OBJECT(0, UOptions)
+   U_TRACE_DTOR(0, UOptions)
 
        package.clear();
        version.clear();
@@ -715,6 +720,7 @@ PYTHON language support: yes ( 2.7 )
       "memory pool support....:%W " MEMORY_POOL_ENABLE "%W\n\n" \
       "LIBZ support...........:%W " LIBZ_ENABLE "%W\n" \
       "LIBZOPFLI support......:%W " LIBZOPFLI_ENABLE "%W\n" \
+      "LIBBROTLI support......:%W " LIBBROTLI_ENABLE "%W\n" \
       "LIBTDB support.........:%W " LIBTDB_ENABLE "%W\n" \
       "PCRE support...........:%W " LIBPCRE_ENABLE "%W\n" \
       "SSL support............:%W " LIBSSL_ENABLE "%W\n" \
@@ -763,6 +769,7 @@ PYTHON language support: yes ( 2.7 )
                BRIGHTWHITE, RESET,
                BRIGHTWHITE, RESET,
                // support
+               BRIGHTGREEN, RESET,
                BRIGHTGREEN, RESET,
                BRIGHTGREEN, RESET,
                BRIGHTGREEN, RESET,

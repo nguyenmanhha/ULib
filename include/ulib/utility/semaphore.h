@@ -25,7 +25,10 @@ extern "C" { int sem_getvalue(sem_t* sem, int* sval); }
 #  endif
 #endif
 
+class ULib;
+class ULock;
 class UTimeVal;
+class Application;
 class UServer_Base;
 
 /**
@@ -52,7 +55,7 @@ public:
 
    USemaphore()
       {
-      U_TRACE_REGISTER_OBJECT(0, USemaphore, "", 0)
+      U_TRACE_CTOR(0, USemaphore, "")
 
       next = U_NULLPTR;
       psem = U_NULLPTR;
@@ -95,6 +98,8 @@ public:
    void   lock();
    void unlock() { post(); }
 
+   static USemaphore* first; // active list 
+
 #if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    const char* dump(bool) const;
 #endif
@@ -110,8 +115,6 @@ protected:
    int psem;
 #endif
 
-   static USemaphore* first;
-
    void post();
 
    static bool checkForDeadLock(UTimeVal& time); // NB: check if process has restarted and it had a lock active...
@@ -125,6 +128,9 @@ protected:
 private:
    U_DISALLOW_COPY_AND_ASSIGN(USemaphore)
 
+   friend class ULib;
+   friend class ULock;
+   friend class Application;
    friend class UServer_Base;
 };
 

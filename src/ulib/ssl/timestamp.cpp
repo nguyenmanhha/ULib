@@ -33,11 +33,11 @@ TS_RESP* UTimeStamp::readTimeStampResponse(const UString& x)
 
 UTimeStamp::UTimeStamp(UString& request, const UString& TSA) : UPKCS7(U_NULLPTR, U_NULLPTR)
 {
-   U_TRACE_REGISTER_OBJECT(0, UTimeStamp, "%V,%V", request.rep, TSA.rep)
+   U_TRACE_CTOR(0, UTimeStamp, "%V,%V", request.rep, TSA.rep)
 
    UHttpClient<USSLSocket> client(U_NULLPTR);
 
-   response = (client.sendPost(TSA, request, U_CONSTANT_TO_PARAM("application/timestamp-query"))
+   response = (client.sendPOST(TSA, request, U_CONSTANT_TO_PARAM("application/timestamp-query"))
                      ? readTimeStampResponse(client.getContent())
                      : U_NULLPTR);
 

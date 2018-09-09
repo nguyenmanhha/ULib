@@ -43,6 +43,10 @@ typedef int (*verify_cb)(int,X509_STORE_CTX*); /* error callback */
 #define FNM_CASEFOLD FNM_IGNORECASE
 #endif
 
+// HTTP Access Authentication
+#define U_HTTP_QOP   "auth"
+#define U_HTTP_REALM "Protected Area"
+
 struct U_EXPORT UServices {
 
    static bool isSetuidRoot();               // UID handling: check if we are setuid-root
@@ -169,6 +173,8 @@ struct U_EXPORT UServices {
    static void generateDigest(int alg, uint32_t keylen, const UString& data,                UString& output, int base64 = 0)
       { generateDigest(alg, keylen, (unsigned char*)U_STRING_TO_PARAM(data), output, base64); }
 
+   static bool setDigestCalcResponse(const UString& ha1, const UString& nc, const UString& nonce, const UString& cnonce, const UString& _uri, const UString& user, UString& response);
+
    static UString generateCode(uint32_t len = 6)
       {
       U_TRACE(0, "UServices::generateCode(%u)", len)
@@ -176,7 +182,10 @@ struct U_EXPORT UServices {
       UString code(len);
       char* ptr = code.data();
 
-      for (uint32_t i = 0; i < len; ++i, ++ptr) *ptr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[u_get_num_random(64 - 3)];
+      for (uint32_t i = 0; i < len; ++i, ++ptr)
+         {
+         *ptr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[u_get_num_random_range0(U_CONSTANT_SIZE("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"))];
+         }
 
       code.size_adjust(len);
 
@@ -247,7 +256,7 @@ struct U_EXPORT UServices {
    static UString getFileName(long hash, bool crl = false);
    static ENGINE* loadEngine(const char* id, unsigned int flags);
    static bool setupOpenSSLStore(const char* CAfile = U_NULLPTR, const char* CApath = U_NULLPTR, int store_flags = U_STORE_FLAGS);
-   static EVP_PKEY* loadKey(const UString& x, const char* format, bool _private = true, const char* password = U_NULLPTR, ENGINE* e = U_NULLPTR);
+   static EVP_PKEY* loadKey(UString& x, const char* format, bool _private = true, const char* password = U_NULLPTR, ENGINE* e = U_NULLPTR);
 
    /**
     * data   is the data to be signed
@@ -255,8 +264,8 @@ struct U_EXPORT UServices {
     * passwd is the corresponsding password for the private key
     */
 
-   static bool    verifySignature(  int alg, const UString& data, const UString& signature, const UString& pkey,                                    ENGINE* e = U_NULLPTR);
-   static UString getSignatureValue(int alg, const UString& data,                           const UString& pkey, const UString& passwd, int base64, ENGINE* e = U_NULLPTR);
+   static bool    verifySignature(  int alg, const UString& data, const UString& signature, UString& pkey,                              ENGINE* e = U_NULLPTR);
+   static UString getSignatureValue(int alg, const UString& data,                           UString& pkey, UString& passwd, int base64, ENGINE* e = U_NULLPTR);
 #endif
 };
 

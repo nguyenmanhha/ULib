@@ -39,7 +39,7 @@ public:
    UOrmSession(const char* dbname,  uint32_t len);
    UOrmSession(const char* backend, uint32_t len, const UString& option)
       {
-      U_TRACE_REGISTER_OBJECT(0, UOrmSession, "%.*S,%u,%V", len, backend, len, option.rep)
+      U_TRACE_CTOR(0, UOrmSession, "%.*S,%u,%V", len, backend, len, option.rep)
 
       loadDriver(backend, len, option);
       }
@@ -51,6 +51,8 @@ public:
    bool  isReady() const __pure;
    void* getConnection() __pure;
    bool  connect(const UString& option);
+
+   UOrmDriver* getDriver() const { return pdrv; }
 
    // statement that should only be executed once and immediately
 
@@ -102,14 +104,14 @@ public:
 
    UOrmTypeHandler_Base(const void* ptr) : pval((void*)ptr)
       {
-      U_TRACE_REGISTER_OBJECT(0, UOrmTypeHandler_Base, "%p", ptr)
+      U_TRACE_CTOR(0, UOrmTypeHandler_Base, "%p", ptr)
 
       U_INTERNAL_ASSERT_POINTER(pval)
       }
 
    ~UOrmTypeHandler_Base()
       {
-      U_TRACE_UNREGISTER_OBJECT(0, UOrmTypeHandler_Base)
+      U_TRACE_DTOR(0, UOrmTypeHandler_Base)
 
       U_INTERNAL_ASSERT_POINTER(pval)
       }
@@ -212,9 +214,22 @@ public:
     UOrmStatement(UOrmSession& session, const char* query, uint32_t query_len);
    ~UOrmStatement();
 
+   // will be typecast into conn-specific type
+
+   UOrmDriver*    getDriver() const    { return pdrv; }
+   USqlStatement* getStatement() const { return pstmt; }
+
    // Execute the statement
 
    void execute();
+
+   // ASYNC with PIPELINE
+
+   bool asyncPipelineProcessQueue(uint32_t n);
+   bool asyncPipelineSendQueryPrepared(uint32_t i);
+   bool asyncPipelineMode(vPFu function = U_NULLPTR);
+   void setAsyncPipelineHandlerResult(vPFu function);
+   bool asyncPipelineSendQuery(const char* query, uint32_t query_len, uint32_t n);
 
    // This function returns the number of database rows that were changed
    // or inserted or deleted by the most recently completed SQL statement
@@ -262,7 +277,6 @@ public:
 #endif
    void bindParam(long long& v);
    void bindParam(struct tm& v);
-   void bindParam(UStringRep& v);
    void bindParam(const char* s);
    void bindParam(long double& v);
    void bindParam(unsigned int& v);
@@ -271,7 +285,10 @@ public:
    void bindParam(unsigned short& v);
    void bindParam(unsigned long long& v);
    void bindParam(const char* b, const char* e);
-   void bindParam(const char* s, int n, bool bstatic, int rebind = -1);
+   void bindParam(const char* s, uint32_t n, bool bstatic, int rebind = -1);
+
+   void bindParam(UString& v);
+   void bindParam(UStringRep& v);
 
    template <typename T> void bindParam(UOrmTypeHandler<T> t)
       {
@@ -307,13 +324,14 @@ public:
    void bindResult(float& v);
    void bindResult(double& v);
    void bindResult(long long& v);
-   void bindResult(UStringRep& v);
    void bindResult(long double& v);
    void bindResult(unsigned int& v);
    void bindResult(unsigned long& v);
    void bindResult(unsigned char& v);
    void bindResult(unsigned short& v);
    void bindResult(unsigned long long& v);
+
+   void bindResult(UString& v);
 
    template <typename T> void bindResult(UOrmTypeHandler<T> t)
       {
@@ -338,6 +356,7 @@ public:
 protected:
    UOrmDriver* pdrv;
    USqlStatement* pstmt;
+   UOrmSession* psession;
 
 private:
    U_DISALLOW_COPY_AND_ASSIGN(UOrmStatement)
@@ -825,16 +844,16 @@ public:
 
    void bindParam(UOrmStatement* stmt)
       {
-      U_TRACE(0, "UOrmTypeHandler<UString>::bindParam(%p)", stmt)
+      U_TRACE(0, "UOrmTypeHandler<UStringRep>::bindParam(%p)", stmt)
 
       stmt->bindParam(*(UStringRep*)pval);
       }
 
    void bindResult(UOrmStatement* stmt)
       {
-      U_TRACE(0, "UOrmTypeHandler<UString>::bindResult(%p)", stmt)
+      U_TRACE(0, "UOrmTypeHandler<UStringRep>::bindResult(%p)", stmt)
 
-      stmt->bindResult(*(UStringRep*)pval);
+      U_ERROR("UOrmTypeHandler<UStringRep>::bindResult(): sorry, we cannot use UStringRep type to bind ORM type handler...");
       }
 };
 
@@ -846,16 +865,14 @@ public:
       {
       U_TRACE(0, "UOrmTypeHandler<UString>::bindParam(%p)", stmt)
 
-      stmt->bindParam(*((UString*)pval)->rep);
+      stmt->bindParam(*(UString*)pval);
       }
 
    void bindResult(UOrmStatement* stmt)
       {
       U_TRACE(0, "UOrmTypeHandler<UString>::bindResult(%p)", stmt)
 
-      if (((UString*)pval)->isNull()) ((UString*)pval)->setBuffer(U_CAPACITY);
-
-      stmt->bindResult(*((UString*)pval)->rep);
+      stmt->bindResult(*(UString*)pval);
       }
 };
 
@@ -934,8 +951,13 @@ public:
 
    explicit UOrmTypeHandler(UVector<UString>& val) : UOrmTypeHandler<uvectorbase>(*((uvector*)&val)) {}
 
-   void bindParam( UOrmStatement* stmt) { ((UOrmTypeHandler<uvectorbase>*)this)->bindParam( stmt); }
-   void bindResult(UOrmStatement* stmt) { ((UOrmTypeHandler<uvectorbase>*)this)->bindResult(stmt); }
-};
+   void bindParam(UOrmStatement* stmt) { ((UOrmTypeHandler<uvectorbase>*)this)->bindParam( stmt); }
 
+   void bindResult(UOrmStatement* stmt)
+      {
+      U_TRACE(0, "UOrmTypeHandler<UVector<UString>>::bindResult(%p)", stmt)
+
+      U_ERROR("UOrmTypeHandler<UVector<UString>>::bindResult(): sorry, we cannot use UVector<UString> type to bind ORM type handler...");
+      }
+};
 #endif

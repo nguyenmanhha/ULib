@@ -84,7 +84,7 @@ void UDataSession::toStream(ostream& os)
    os.put(' ');
    os << creation;
    os.put(' ');
-   os << *vec_var;
+   os << vec_var;
    os.put(' ');
    os.put('}');
 }
@@ -103,7 +103,7 @@ void UDataSession::fromStream(istream& is)
 
    U_INTERNAL_ASSERT(is.peek() == '(')
 
-   is >> *vec_var;
+   is >> vec_var;
 
    is.get(); // skip ' '
    is.get(); // skip '}'
@@ -114,7 +114,7 @@ void UDataSession::fromStream(istream& is)
 #  ifdef DEBUG
 const char* UDataStorage::dump(bool reset) const
 {
-   *UObjectIO::os << "keyid   (UString           " << (void*)&keyid << ')';
+   *UObjectIO::os << "keyid   (UString          " << (void*)&keyid << ')';
 
    if (reset)
       {
@@ -131,9 +131,9 @@ const char* UDataSession::dump(bool reset) const
    UDataStorage::dump(false);
 
    *UObjectIO::os << '\n'
-                  << "creation                   " << creation       << '\n'
-                  << "last_access                " << last_access    << '\n'
-                  << "vec_var (UVector<UString*> " << (void*)vec_var << ')';
+                  << "creation                  " << creation        << '\n'
+                  << "last_access               " << last_access     << '\n'
+                  << "vec_var (UVector<UString> " << (void*)&vec_var << ')';
 
    if (reset)
       {

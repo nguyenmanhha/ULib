@@ -15,7 +15,7 @@
 
    if (client->connect() == false) goto end;
 
-   if (method) op = atoi(method);
+   if (method) op = u_atoi(method);
    else
       {
    // if (UDialog::isXdialog() == false) U_ERROR("num_method not specified and I don't find Xdialog");
@@ -84,7 +84,7 @@
             {
             ca = UString(argv[optind]);
 
-            if (argv[++optind]) days =    atoi(argv[optind]);
+            if (argv[++optind]) days =  u_atoi(argv[optind]);
             if (argv[++optind])  cnf = UString(argv[optind]);
             }
          else
@@ -93,8 +93,8 @@
 
             static const char* labels[] = { "name CA:", "certificate validity period (number of days):", U_NULLPTR };
 
-            vec.push(ca);
-            vec.push(U_STRING_FROM_CONSTANT("365"));
+            vec.push_back(ca);
+            vec.push_back(U_STRING_FROM_CONSTANT("365"));
 
             if (x.inputsbox2("CA creation", labels, vec, U_NULLPTR) == false) goto end;
 
@@ -187,7 +187,7 @@
             {
             ca = UString(argv[optind]);
 
-            if (argv[++optind]) compress = atoi(argv[optind]);
+            if (argv[++optind]) compress = u_atoi(argv[optind]);
             }
          else
             {
@@ -258,9 +258,9 @@
                   {
                   subject = UCertificate::getSubject(cert);
 
-                  tmp.snprintf(U_CONSTANT_TO_PARAM("0x%04X %v"), lserial, subject.rep);
+                  tmp.snprintf(U_CONSTANT_TO_PARAM("%#04X %v"), lserial, subject.rep);
 
-                  vec.push(tmp.copy());
+                  vec.push_back(tmp.copy());
                   }
                }
 

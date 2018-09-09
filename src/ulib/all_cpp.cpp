@@ -30,6 +30,7 @@
 #include "container/vector.cpp"
 #include "container/hash_map.cpp"
 #include "container/tree.cpp"
+#include "event/event_db.cpp"
 #include "event/event_time.cpp"
 #include "net/socket.cpp"
 #include "net/ipaddress.cpp"
@@ -51,6 +52,7 @@
 #include "utility/string_ext.cpp"
 #include "utility/socket_ext.cpp"
 #include "utility/data_session.cpp"
+#include "serialize/flatbuffers.cpp"
 #include "lemon/expression.cpp"
 #include "dynamic/dynamic.cpp"
 #include "dynamic/plugin.cpp"
@@ -118,6 +120,7 @@
 #     include "ssl/crl.cpp"
 #     include "ssl/pkcs10.cpp"
 #     include "net/client/twilio.cpp"
+#     include "net/client/uwebsocket.cpp"
 #     include "ssl/mime/mime_pkcs7.cpp"
 #     include "ssl/net/sslsocket.cpp"
 #     include "ssl/net/ssl_session.cpp"
@@ -178,6 +181,9 @@
 #  endif
 #  ifdef U_STATIC_HANDLER_NOCAT
 #     include "net/server/plugin/mod_nocat.cpp"
+#  endif
+#  ifdef U_STATIC_HANDLER_NODOG
+#     include "net/server/plugin/mod_nodog.cpp"
 #  endif
 #  ifdef U_STATIC_HANDLER_SOCKET
 #     include "net/server/plugin/mod_socket.cpp"

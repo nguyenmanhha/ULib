@@ -116,7 +116,7 @@ static UString*  yearName;
 static UString* monthName;
 static UString*  weekName;
 
-static uint32_t    time_available_daily,   time_available_flat;
+static uint32_t    time_available_daily,    time_available_flat;
 static uint64_t traffic_available_daily, traffic_available_flat;
 
 static bool     user_exist, brenew, isIP, isMAC, ap_address_trust, db_user_filter_tavarnelle, admin_status_nodog_and_user_as_csv, status_nodog_and_user_resync;
@@ -170,7 +170,7 @@ public:
 
    WiAuthDataStorage() : UDataStorage(*UString::str_storage_keyid)
       {
-      U_TRACE_REGISTER_OBJECT(5, WiAuthDataStorage, "", 0)
+      U_TRACE_CTOR(5, WiAuthDataStorage, "")
 
       utenti_connessi_giornaliero_globale         =
       tempo_permanenza_utenti_giornaliero_globale = 0;
@@ -179,7 +179,7 @@ public:
 
    ~WiAuthDataStorage()
       {
-      U_TRACE_UNREGISTER_OBJECT(5, WiAuthDataStorage)
+      U_TRACE_DTOR(5, WiAuthDataStorage)
 
       UHTTP::db_session->setPointerToDataStorage(U_NULLPTR);
       }
@@ -250,7 +250,7 @@ public:
 
    WiAuthVirtualAccessPoint()
       {
-      U_TRACE_REGISTER_OBJECT(5, WiAuthVirtualAccessPoint, "", 0)
+      U_TRACE_CTOR(5, WiAuthVirtualAccessPoint, "")
 
       _index_access_point  =
       _num_users_connected = 0;
@@ -258,11 +258,11 @@ public:
 
    ~WiAuthVirtualAccessPoint()
       {
-      U_TRACE_UNREGISTER_OBJECT(5, WiAuthVirtualAccessPoint)
+      U_TRACE_DTOR(5, WiAuthVirtualAccessPoint)
 
       db_ap->close();
 
-      delete db_ap;
+      U_DELETE(db_ap)
       }
 
    // SERVICES
@@ -422,7 +422,7 @@ public:
 
    WiAuthAccessPoint()
       {
-      U_TRACE_REGISTER_OBJECT(5, WiAuthAccessPoint, "", 0)
+      U_TRACE_CTOR(5, WiAuthAccessPoint, "")
 
       reset();
 
@@ -431,7 +431,7 @@ public:
 
    WiAuthAccessPoint(const UString& lbl, bool _noconsume) : _label(lbl), noconsume(_noconsume)
       {
-      U_TRACE_REGISTER_OBJECT(5, WiAuthAccessPoint, "%V,%b", lbl.rep, _noconsume)
+      U_TRACE_CTOR(5, WiAuthAccessPoint, "%V,%b", lbl.rep, _noconsume)
 
       U_INTERNAL_ASSERT(_label)
 
@@ -440,7 +440,7 @@ public:
 
    WiAuthAccessPoint(const WiAuthAccessPoint& _ap) : _label(_ap._label), mac_mask(_ap.mac_mask), group_account_mask(_ap.group_account_mask)
       {
-      U_TRACE_REGISTER_OBJECT(5, WiAuthAccessPoint, "%p", &_ap)
+      U_TRACE_CTOR(5, WiAuthAccessPoint, "%p", &_ap)
 
       U_MEMORY_TEST_COPY(_ap)
 
@@ -458,7 +458,7 @@ public:
 
    ~WiAuthAccessPoint()
       {
-      U_TRACE_UNREGISTER_OBJECT(5, WiAuthAccessPoint)
+      U_TRACE_DTOR(5, WiAuthAccessPoint)
       }
 
    // SERVICES
@@ -484,7 +484,7 @@ public:
 
       char buffer[1024];
 
-      (void) buffer_data->append(buffer, u__snprintf(buffer, sizeof(buffer),
+      (void) buffer_data->append(buffer, u__snprintf(buffer, U_CONSTANT_SIZE(buffer),
                         U_CONSTANT_TO_PARAM(" %c%u %v \"%v\" \"%v\""
                         " %u %u %u %llu"),
                         noconsume ? '-' : '+', _num_users_connected, _label.rep, group_account_mask.rep, mac_mask.rep,
@@ -583,7 +583,7 @@ public:
 
    WiAuthNodog()
       {
-      U_TRACE_REGISTER_OBJECT(5, WiAuthNodog, "", 0)
+      U_TRACE_CTOR(5, WiAuthNodog, "")
 
       sz        = 0;
       port      = 5280;
@@ -595,11 +595,11 @@ public:
 
    ~WiAuthNodog()
       {
-      U_TRACE_UNREGISTER_OBJECT(5, WiAuthNodog)
+      U_TRACE_DTOR(5, WiAuthNodog)
 
       db_nodog->close();
 
-      delete db_nodog;
+      U_DELETE(db_nodog)
       }
 
    // define method VIRTUAL of class UDataStorage
@@ -945,7 +945,7 @@ public:
 
             url.snprintf(U_CONSTANT_TO_PARAM("http://%v/cgi-bin/webif/reboot.sh"), ap_address->rep);
 
-            if (client->sendPost(url, *pbody)) nodog_rec->setStatus(1); // unreachable
+            if (client->sendPOST(url, *pbody)) nodog_rec->setStatus(1); // unreachable
             }
          }
       }
@@ -1073,8 +1073,8 @@ loop: pos = db_anagrafica->find(*ap_address, pos);
 
          if (vlabel.size() == vnetmask.size())
             {
-                lbl =   vlabel.join(' ');
-            netmask = vnetmask.join(' ');
+                lbl =   vlabel.join();
+            netmask = vnetmask.join();
             }
          else
             {
@@ -1552,7 +1552,7 @@ another:       ap_rec = nodog_rec->vec_access_point[index_access_point];
                              n1, uptime,
                              n1, ptr1, ptr2,
                              n1, u_now->tv_sec - nodog_rec->since,
-                             n1, nodog_rec->last_info + u_now_adjust,
+                             n1, u_get_localtime(nodog_rec->last_info),
                              ptr3, ptr4,
                              mac_mask.rep,
                              group_account_mask.rep,
@@ -2048,7 +2048,7 @@ public:
 
    WiAuthUser()
       {
-      U_TRACE_REGISTER_OBJECT(5, WiAuthUser, "", 0)
+      U_TRACE_CTOR(5, WiAuthUser, "")
 
       login_time    = last_modified = 0L;
       _traffic_done = _traffic_available = _traffic_consumed = 0ULL;
@@ -2059,11 +2059,11 @@ public:
 
    ~WiAuthUser()
       {
-      U_TRACE_UNREGISTER_OBJECT(5, WiAuthUser)
+      U_TRACE_DTOR(5, WiAuthUser)
 
       db_user->close();
 
-      delete db_user;
+      U_DELETE(db_user)
       }
 
    // define method VIRTUAL of class UDataStorage
@@ -2150,7 +2150,7 @@ public:
 
       _user.get(is);
 
-      U_INTERNAL_ASSERT(_mac)
+      if (_mac.empty()) _mac = *UString::str_without_mac;
       }
 
 # ifdef DEBUG
@@ -2504,10 +2504,12 @@ next:
       {
       U_TRACE_NO_PARAM(5, "WiAuthUser::checkTypeUID()")
 
-      U_INTERNAL_ASSERT(*uid)
+      uint32_t sz = uid->size();
+
+      if (sz == 0) U_RETURN(false);
+
       U_ASSERT_EQUALS(*uid, UStringExt::trim(*uid))
 
-      uint32_t sz     = uid->size();
       const char* ptr = uid->data();
 
       isIP  = u_isIPv4Addr(ptr, sz);
@@ -2838,7 +2840,12 @@ next:
 
       while (u__isdigit(*++ptr)) {}
 
-      U_INTERNAL_ASSERT(u__isblank(*ptr))
+      if (u__isblank(*ptr) == false)
+         {
+         U_LOGGER("*** WiAuthUser::getIndexAccessPoint() THE RECORD IS NOT CORRECT %20S ***", ptr);
+
+         return U_NULLPTR;
+         }
 
       ++ptr;
 
@@ -2908,7 +2915,12 @@ next:
 
       while (u__isdigit(*++ptr)) {}
 
-      U_INTERNAL_ASSERT(u__isblank(*ptr))
+      if (u__isblank(*ptr) == false)
+         {
+         U_LOGGER("*** WiAuthUser::getIndexAccessPoint() THE RECORD IS NOT CORRECT %20S ***", ptr);
+
+         return U_NULLPTR;
+         }
 
       ++ptr;
 
@@ -3027,6 +3039,13 @@ next:
 
       ptr = getIndexAccessPoint(ptr, U_NULLPTR);
 
+      if (ptr == U_NULLPTR)
+         {
+         U_LOGGER("*** WiAuthUser::setNodog() ***");
+
+         U_RETURN(false);
+         }
+
       uint32_t sz;
 
       ptr = getNodogReference(ptr, &sz);
@@ -3051,6 +3070,13 @@ next:
       uint32_t _index_access_point;
 
       ptr = getIndexAccessPoint(ptr, &_index_access_point);
+
+      if (ptr == U_NULLPTR)
+         {
+         U_LOGGER("*** WiAuthUser::countUserConnectedOnNodog(%V) ***", key);
+
+         U_RETURN(1);
+         }
 
       if (_index_access_point != index_access_point) U_RETURN(1);
 
@@ -3106,7 +3132,7 @@ next:
          U_RETURN(1);
          }
 
-      U_INTERNAL_ASSERT(user_rec->connected)
+      if (user_rec->connected == false) U_LOGGER("*** quitUserConnected() user NOT CONNECTED *** uid = %V", db_user->getKeyID().rep);
 
       if (user_rec->nodog == *ap_address)
          {
@@ -3178,9 +3204,9 @@ next:
 
       U_INTERNAL_DUMP("user_rec->last_modified = %ld UNotifier::last_event = %ld user_rec->connected = %b", user_rec->last_modified, UNotifier::last_event, user_rec->connected)
 
-      U_INTERNAL_ASSERT(user_rec->connected)
-
       *uid = db_user->getKeyID();
+
+      if (user_rec->connected == false) U_LOGGER("*** WiAuthUser::getStatusUser() user NOT CONNECTED *** uid = %V", uid->rep);
 
       if (user_rec->setNodogReference())
          {
@@ -3221,7 +3247,7 @@ next:
                        user_rec->_auth_domain.rep,
                        user_rec->_ip.rep,
                        user_rec->_mac.rep,
-                       user_rec->login_time + u_now_adjust,
+                       u_get_localtime(user_rec->login_time),
                        x.rep,
                        ptr1, ptr2,
                        p3, p4,
@@ -3245,9 +3271,9 @@ next:
          U_RETURN(1);
          }
 
-      U_INTERNAL_ASSERT(user_rec->connected)
-
       *uid = db_user->getKeyID();
+
+      if (user_rec->connected == false) U_LOGGER("*** setNumberOfUserConnected() user NOT CONNECTED *** uid = %V", uid->rep);
 
       if (user_rec->setNodogReference())
          {
@@ -3365,7 +3391,7 @@ next:
 
       if (vuid->empty() == false)
          {
-         UString    tmp = vuid->join(','),
+         UString    tmp = vuid->join(0, U_CONSTANT_TO_PARAM(",")),
                  result = nodog_rec->sendRequestToNodog(U_CONSTANT_TO_PARAM("checkForUsersF?%v"), tmp.rep);
 
          if (result &&
@@ -3596,9 +3622,11 @@ static void db_open()
 
    bool no_ssl = (UServer_Base::bssl == false);
 
-   bool result1 = db_nodog->open(10 * 1024 * 1024, false, false, no_ssl); // 10M
-   bool result2 =  db_user->open(10 * 1024 * 1024, false, false, no_ssl); // 10M
-   bool result3 =    db_ap->open(10 * 1024 * 1024, false, false, no_ssl); // 10M
+   // POSIX shared memory object: interprocess - can be used by unrelated processes (userver_tcp and userver_ssl)
+
+   bool result1 = db_nodog->open(10 * 1024 * 1024, false, false, no_ssl, U_NULLPTR); // 10M
+   bool result2 =  db_user->open(10 * 1024 * 1024, false, false, no_ssl, U_NULLPTR); // 10M
+   bool result3 =    db_ap->open(10 * 1024 * 1024, false, false, no_ssl, U_NULLPTR); // 10M
 
    num_ap              =
    num_users           =
@@ -3621,8 +3649,8 @@ static void usp_init_wi_auth()
 {
    U_TRACE_NO_PARAM(5, "::usp_init_wi_auth()")
 
-   U_NEW(UString, ap_ref,   UString(100U));
-   U_NEW(UString, ap_label, UString);
+   U_NEW_STRING(ap_ref,   UString(100U));
+   U_NEW_STRING(ap_label, UString);
 
 #ifndef U_ALIAS
    U_ERROR("Sorry, I can't run the USP wi_auth because alias URI support is missing, please recompile ULib");
@@ -3632,92 +3660,93 @@ static void usp_init_wi_auth()
 
    if (sockp->initPing() == false)
       {
-      delete sockp;
-             sockp = U_NULLPTR;
+      U_DELETE(sockp)
+
+      sockp = U_NULLPTR;
       }
 
-   U_NEW(UString, ip, UString);
-   U_NEW(UString, ap, UString);
-   U_NEW(UString, ts, UString);
-   U_NEW(UString, uid, UString);
-   U_NEW(UString, mac, UString);
-   U_NEW(UString, realm, UString);
-   U_NEW(UString, label, UString);
-   U_NEW(UString, yearName, UString(U_STRING_FROM_CONSTANT("year")));
-   U_NEW(UString, monthName, UString(U_STRING_FROM_CONSTANT("month")));
-   U_NEW(UString, weekName, UString(U_STRING_FROM_CONSTANT("week")));
-   U_NEW(UString, pbody, U_STRING_FROM_CONSTANT("reboot=+Yes%2C+really+reboot+now+"));
-   U_NEW(UString, redir, UString);
-   U_NEW(UString, token, UString);
-   U_NEW(UString, output, UString);
-   U_NEW(UString, policy, UString);
-   U_NEW(UString, gateway, UString);
-   U_NEW(UString, ip_auth, U_STRING_FROM_CONSTANT("IP_AUTH"));
-   U_NEW(UString, redirect, UString);
-   U_NEW(UString, mac_auth, U_STRING_FROM_CONSTANT("MAC_AUTH"));
-   U_NEW(UString, ip_server, UString(UServer_Base::getIPAddress()));
-   U_NEW(UString, empty_str, U_STRING_FROM_CONSTANT("\"\""));
-   U_NEW(UString, url_nodog, UString(U_CAPACITY));
-   U_NEW(UString, buffer_srv, UString(U_CAPACITY));
-   U_NEW(UString, buffer_data, UString(U_CAPACITY));
-   U_NEW(UString, cert_auth, U_STRING_FROM_CONSTANT("CERT_AUTH"));
-   U_NEW(UString, str_ffffff, U_STRING_FROM_CONSTANT("ffffff"));
-   U_NEW(UString, nodog_conf, UString(UFile::contentOf(U_STRING_FROM_CONSTANT("ap/nodog.conf.template"))));
-   U_NEW(UString, logout_url, UString(200U));
-   U_NEW(UString, ap_address, UString);
-   U_NEW(UString, empty_list, U_STRING_FROM_CONSTANT("()"));
-   U_NEW(UString, auth_domain, UString);
-   U_NEW(UString, ap_hostname, UString);
-   U_NEW(UString, cookie_auth, U_STRING_FROM_CONSTANT("COOKIE_AUTH_"));
-   U_NEW(UString, account_auth, U_STRING_FROM_CONSTANT("ACCOUNT_AUTH"));
-   U_NEW(UString, user_UploadRate, UString(10U));
-   U_NEW(UString, user_DownloadRate, UString(10U));
-   U_NEW(UString, allowed_web_hosts, UString);
-   U_NEW(UString, dir_server_address, UString(200U));
-   U_NEW(UString, max_time_no_traffic, UString);
+   U_NEW_STRING(ip, UString);
+   U_NEW_STRING(ap, UString);
+   U_NEW_STRING(ts, UString);
+   U_NEW_STRING(uid, UString);
+   U_NEW_STRING(mac, UString);
+   U_NEW_STRING(realm, UString);
+   U_NEW_STRING(label, UString);
+   U_NEW_STRING(yearName, UString(U_CONSTANT_TO_PARAM("year")));
+   U_NEW_STRING(monthName, UString(U_CONSTANT_TO_PARAM("month")));
+   U_NEW_STRING(weekName, UString(U_CONSTANT_TO_PARAM("week")));
+   U_NEW_STRING(pbody, UString(U_CONSTANT_TO_PARAM("reboot=+Yes%2C+really+reboot+now+")));
+   U_NEW_STRING(redir, UString);
+   U_NEW_STRING(token, UString);
+   U_NEW_STRING(output, UString);
+   U_NEW_STRING(policy, UString);
+   U_NEW_STRING(gateway, UString);
+   U_NEW_STRING(ip_auth, UString(U_CONSTANT_TO_PARAM("IP_AUTH")));
+   U_NEW_STRING(redirect, UString);
+   U_NEW_STRING(mac_auth, UString(U_CONSTANT_TO_PARAM("MAC_AUTH")));
+   U_NEW_STRING(ip_server, UString(UServer_Base::getIPAddress()));
+   U_NEW_STRING(empty_str, UString(U_CONSTANT_TO_PARAM("\"\"")));
+   U_NEW_STRING(url_nodog, UString(U_CAPACITY));
+   U_NEW_STRING(buffer_srv, UString(U_CAPACITY));
+   U_NEW_STRING(buffer_data, UString(U_CAPACITY));
+   U_NEW_STRING(cert_auth, UString(U_CONSTANT_TO_PARAM("CERT_AUTH")));
+   U_NEW_STRING(str_ffffff, UString(U_CONSTANT_TO_PARAM("ffffff")));
+   U_NEW_STRING(nodog_conf, UString(UFile::contentOf(U_STRING_FROM_CONSTANT("ap/nodog.conf.template"))));
+   U_NEW_STRING(logout_url, UString(200U));
+   U_NEW_STRING(ap_address, UString);
+   U_NEW_STRING(empty_list, UString(U_CONSTANT_TO_PARAM("()")));
+   U_NEW_STRING(auth_domain, UString);
+   U_NEW_STRING(ap_hostname, UString);
+   U_NEW_STRING(cookie_auth, UString(U_CONSTANT_TO_PARAM("COOKIE_AUTH_")));
+   U_NEW_STRING(account_auth, UString(U_CONSTANT_TO_PARAM("ACCOUNT_AUTH")));
+   U_NEW_STRING(user_UploadRate, UString(10U));
+   U_NEW_STRING(user_DownloadRate, UString(10U));
+   U_NEW_STRING(allowed_web_hosts, UString);
+   U_NEW_STRING(dir_server_address, UString(200U));
+   U_NEW_STRING(max_time_no_traffic, UString);
 
-   U_NEW(UString, time_done, UString(20U));
-   U_NEW(UString, time_counter, UString(20U));
-   U_NEW(UString, time_consumed, UString(20U));
-   U_NEW(UString, traffic_done, UString(20U));
-   U_NEW(UString, traffic_counter, UString(20U));
-   U_NEW(UString, traffic_consumed, UString(20U));
+   U_NEW_STRING(time_done, UString(20U));
+   U_NEW_STRING(time_counter, UString(20U));
+   U_NEW_STRING(time_consumed, UString(20U));
+   U_NEW_STRING(traffic_done, UString(20U));
+   U_NEW_STRING(traffic_counter, UString(20U));
+   U_NEW_STRING(traffic_consumed, UString(20U));
 
    U_NEW(UTimeDate, date, UTimeDate);
 
    U_INTERNAL_ASSERT_POINTER(USSIPlugIn::environment)
 
-   U_NEW(UString, environment, UString(*USSIPlugIn::environment));
-   U_NEW(UString, virtual_name, UString(UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("VIRTUAL_NAME"),  environment)));
+   U_NEW_STRING(environment, UString(*USSIPlugIn::environment));
+   U_NEW_STRING(virtual_name, UString(UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("VIRTUAL_NAME"),  environment)));
 
    (void) environment->append(U_CONSTANT_TO_PARAM("VIRTUAL_HOST="));
    (void) environment->append(*virtual_name);
 
    UString dir_root = UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("DIR_ROOT"), environment);
 
-   U_NEW(UString, dir_reg, UString(UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("DIR_REG"), environment)));
-   U_NEW(UString, title_default, UString(UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("TITLE_DEFAULT"), environment)));
-   U_NEW(UString, historical_log_dir, UString(UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("HISTORICAL_LOG_DIR"), environment)));
+   U_NEW_STRING(dir_reg, UString(UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("DIR_REG"), environment)));
+   U_NEW_STRING(title_default, UString(UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("TITLE_DEFAULT"), environment)));
+   U_NEW_STRING(historical_log_dir, UString(UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("HISTORICAL_LOG_DIR"), environment)));
 
    dir_server_address->snprintf(U_CONSTANT_TO_PARAM("%v/client"), dir_root.rep);
 
    UString tmp1 = UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("LDAP_CARD_PARAM"),    environment),
            tmp2 = UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("WIAUTH_CARD_BASEDN"), environment);
 
-   U_NEW(UString, ldap_card_param, UString(UStringExt::expandEnvironmentVar(tmp1, environment)));
-   U_NEW(UString, wiauth_card_basedn, UString(UStringExt::expandEnvironmentVar(tmp2, environment)));
+   U_NEW_STRING(ldap_card_param, UString(UStringExt::expandEnvironmentVar(tmp1, environment)));
+   U_NEW_STRING(wiauth_card_basedn, UString(UStringExt::expandEnvironmentVar(tmp2, environment)));
 
    tmp1 = UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("LDAP_USER_PARAM"),    environment),
    tmp2 = UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("WIAUTH_USER_BASEDN"), environment);
 
-   U_NEW(UString, ldap_user_param, UString(UStringExt::expandEnvironmentVar(tmp1, environment)));
-   U_NEW(UString, wiauth_user_basedn, UString(UStringExt::expandEnvironmentVar(tmp2, environment)));
+   U_NEW_STRING(ldap_user_param, UString(UStringExt::expandEnvironmentVar(tmp1, environment)));
+   U_NEW_STRING(wiauth_user_basedn, UString(UStringExt::expandEnvironmentVar(tmp2, environment)));
 
    tmp1 = UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("LDAP_SESSION_PARAM"),    environment),
    tmp2 = UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("WIAUTH_SESSION_BASEDN"), environment);
 
-   U_NEW(UString, ldap_session_param, UString(UStringExt::expandEnvironmentVar(tmp1, environment)));
-   U_NEW(UString, wiauth_session_basedn, UString(UStringExt::expandEnvironmentVar(tmp2, environment)));
+   U_NEW_STRING(ldap_session_param, UString(UStringExt::expandEnvironmentVar(tmp1, environment)));
+   U_NEW_STRING(wiauth_session_basedn, UString(UStringExt::expandEnvironmentVar(tmp2, environment)));
 
    UString content = UFile::contentOf(U_STRING_FROM_CONSTANT("$DIR_ROOT/etc/AllowedWebHosts.txt"), O_RDONLY, false, environment);
 
@@ -3725,7 +3754,7 @@ static void usp_init_wi_auth()
       {
       UVector<UString> vec(content);
 
-      if (vec.empty() == false) *allowed_web_hosts = vec.join(' ') + ' ';
+      if (vec.empty() == false) *allowed_web_hosts = vec.join() + ' ';
       }
 
    U_NEW(UCache,        cache, UCache);
@@ -3746,12 +3775,12 @@ static void usp_init_wi_auth()
 
    (void) admin_cache->open(x, U_STRING_FROM_CONSTANT("$DIR_ADMIN_TEMPLATE"), environment, true);
 
-   U_NEW(UString, message_page_template, UString(cache->getContent(U_CONSTANT_TO_PARAM("message_page.tmpl"))));
-   U_NEW(UString, login_nodog_template, UString(admin_cache->getContent(U_CONSTANT_TO_PARAM("login_nodog_body.tmpl"))));
-   U_NEW(UString, status_network_template, UString(admin_cache->getContent(U_CONSTANT_TO_PARAM("status_network_body.tmpl"))));
-   U_NEW(UString, status_nodog_template, UString(admin_cache->getContent(U_CONSTANT_TO_PARAM("status_nodog_body.tmpl"))));
-   U_NEW(UString, status_nodog_ap_template, UString(admin_cache->getContent(U_CONSTANT_TO_PARAM("status_nodog_body_ap.tmpl"))));
-   U_NEW(UString, status_nodog_and_user_body_template, UString(admin_cache->getContent(U_CONSTANT_TO_PARAM("status_nodog_and_user_body.tmpl"))));
+   U_NEW_STRING(message_page_template, UString(cache->getContent(U_CONSTANT_TO_PARAM("message_page.tmpl"))));
+   U_NEW_STRING(login_nodog_template, UString(admin_cache->getContent(U_CONSTANT_TO_PARAM("login_nodog_body.tmpl"))));
+   U_NEW_STRING(status_network_template, UString(admin_cache->getContent(U_CONSTANT_TO_PARAM("status_network_body.tmpl"))));
+   U_NEW_STRING(status_nodog_template, UString(admin_cache->getContent(U_CONSTANT_TO_PARAM("status_nodog_body.tmpl"))));
+   U_NEW_STRING(status_nodog_ap_template, UString(admin_cache->getContent(U_CONSTANT_TO_PARAM("status_nodog_body_ap.tmpl"))));
+   U_NEW_STRING(status_nodog_and_user_body_template, UString(admin_cache->getContent(U_CONSTANT_TO_PARAM("status_nodog_and_user_body.tmpl"))));
 
    x.snprintf(U_CONSTANT_TO_PARAM("$DIR_ROOT/etc/%v/script.conf"), virtual_name->rep);
 
@@ -3760,20 +3789,20 @@ static void usp_init_wi_auth()
    U_NEW(UHashMap<UString>, table,  UHashMap<UString>);
    U_NEW(UHashMap<UString>, table1, UHashMap<UVectorUString>);
 
-   U_NEW(UString, telefono,         UString);
-   U_NEW(UString, fmt_auth_cmd,     UString);
-   U_NEW(UString, redirect_default, UString);
+   U_NEW_STRING(telefono,         UString);
+   U_NEW_STRING(fmt_auth_cmd,     UString);
+   U_NEW_STRING(redirect_default, UString);
 
-   U_NEW(UString, url_banner_ap,     UString);
-   U_NEW(UString, url_banner_comune, UString);
+   U_NEW_STRING(url_banner_ap,     UString);
+   U_NEW_STRING(url_banner_comune, UString);
 
-   U_NEW(UString,          help_url, UString);
-   U_NEW(UString,         login_url, UString);
-   U_NEW(UString,        wallet_url, UString);
-   U_NEW(UString,      password_url, UString);
-   U_NEW(UString, registrazione_url, UString);
+   U_NEW_STRING(         help_url, UString);
+   U_NEW_STRING(        login_url, UString);
+   U_NEW_STRING(       wallet_url, UString);
+   U_NEW_STRING(     password_url, UString);
+   U_NEW_STRING(registrazione_url, UString);
 
-   U_NEW(UString, des3_key, UString);
+   U_NEW_STRING(des3_key, UString);
 
    if (UFileConfig::loadProperties(*table, content))
       {
@@ -3803,12 +3832,12 @@ static void usp_init_wi_auth()
 
    // POLICY
 
-   U_NEW(UString, time_available, UString);
-   U_NEW(UString, traffic_available, UString);
+   U_NEW_STRING(time_available, UString);
+   U_NEW_STRING(traffic_available, UString);
 
-   U_NEW(UString, policy_flat, U_STRING_FROM_CONSTANT("FLAT"));
-   U_NEW(UString, policy_daily, U_STRING_FROM_CONSTANT("DAILY"));
-   U_NEW(UString, policy_traffic, U_STRING_FROM_CONSTANT("TRAFFIC"));
+   U_NEW_STRING(policy_flat, UString(U_CONSTANT_TO_PARAM("FLAT")));
+   U_NEW_STRING(policy_daily, UString(U_CONSTANT_TO_PARAM("DAILY")));
+   U_NEW_STRING(policy_traffic, UString(U_CONSTANT_TO_PARAM("TRAFFIC")));
 
    WiAuthUser::loadPolicy(*policy_daily); // NB: time_available e traffic_available sono valorizzati da loadPolicy()...
 
@@ -3829,29 +3858,29 @@ static void usp_init_wi_auth()
 
    // NB: REBOOT access point tramite webif...
 
-#  ifdef USE_LIBSSL
-      if (UServer_Base::bssl)
+#ifdef USE_LIBSSL
+   if (UServer_Base::bssl)
+      {
+      U_ASSERT_EQUALS(client->isPasswordAuthentication(), false)
+
+      if (UServer_Base::pcfg->searchForObjectStream(U_CONSTANT_TO_PARAM("proxy")))
          {
-         U_ASSERT_EQUALS(client->isPasswordAuthentication(), false)
+         UServer_Base::pcfg->table.clear();
 
-         if (UServer_Base::cfg->searchForObjectStream(U_CONSTANT_TO_PARAM("proxy")))
+         if (UModProxyService::loadConfig(*UServer_Base::pcfg))
             {
-            UServer_Base::cfg->table.clear();
+            UServer_Base::pcfg->reset();
 
-            if (UModProxyService::loadConfig(*UServer_Base::cfg))
-               {
-               UServer_Base::cfg->reset();
+            U_http_method_type = HTTP_GET;
 
-               U_http_method_type = HTTP_GET;
+            UModProxyService* service = UModProxyService::findService(U_STRING_TO_PARAM(*virtual_name),
+                                                                      U_CONSTANT_TO_PARAM("/cgi-bin/webif/status.sh"));
 
-               UModProxyService* service = UModProxyService::findService(U_STRING_TO_PARAM(*virtual_name),
-                                                                         U_CONSTANT_TO_PARAM("/cgi-bin/webif/status.sh"));
-
-               if (service) client->setRequestPasswordAuthentication(service->getUser(), service->getPassword());
-               }
+            if (service) client->setRequestPasswordAuthentication(service->getUser(), service->getPassword());
             }
          }
-#  endif
+      }
+#endif
 
    U_NEW(UFile, file_LOG, UFile(U_STRING_FROM_CONSTANT("$FILE_LOG"), environment));
 
@@ -3906,19 +3935,13 @@ static void usp_init_wi_auth()
    U_NEW(URDBObjectHandler<UDataStorage*>, db_nodog, URDBObjectHandler<UDataStorage*>(U_STRING_FROM_CONSTANT("../db/WiAuthAccessPoint.cdb"),        -1, nodog_rec));
    U_NEW(URDBObjectHandler<UDataStorage*>, db_ap,    URDBObjectHandler<UDataStorage*>(U_STRING_FROM_CONSTANT("../db/WiAuthVirtualAccessPoint.cdb"), -1,   vap_rec));
 
-   // POSIX shared memory object (interprocess - can be used by unrelated processes (userver_tcp and userver_ssl)
-
-      db_ap->setShared(U_NULLPTR, U_NULLPTR);
-    db_user->setShared(U_NULLPTR, U_NULLPTR);
-   db_nodog->setShared(U_NULLPTR, U_NULLPTR);
-
    (void) UFile::mkfifo(NAMED_PIPE, PERM_FILE);
 
    db_open();
 
    // TAVARNELLE
 
-   U_NEW(UString, db_filter_tavarnelle, UString(UFile::contentOf(U_STRING_FROM_CONSTANT("../tavarnelle.rule"))));
+   U_NEW_STRING(db_filter_tavarnelle, UString(UFile::contentOf(U_STRING_FROM_CONSTANT("../tavarnelle.rule"))));
 
    if (*db_filter_tavarnelle) *db_filter_tavarnelle = UStringExt::trim(*db_filter_tavarnelle);
 
@@ -3926,7 +3949,7 @@ static void usp_init_wi_auth()
 
    content = UFile::contentOf(U_STRING_FROM_CONSTANT("../anagrafica.txt"));
 
-   if (content) U_NEW(UString, db_anagrafica, UString(content));
+   if (content) U_NEW_STRING(db_anagrafica, UString(content));
 
    U_INTERNAL_ASSERT_POINTER(db_anagrafica)
 
@@ -3971,113 +3994,113 @@ static void usp_end_wi_auth()
    if (db_nodog)
       {
 #  ifdef DEBUG
-      delete ip;
-      delete ap;
-      delete ts;
-      delete uid;
-      delete mac;
-      delete realm;
-      delete pbody;
-      delete redir;
-      delete token;
-      delete label;
-      delete policy;
-      delete output;
-      delete ap_ref;
-      delete dir_reg;
-      delete gateway;
-      delete ip_auth;
-      delete ap_label;
-      delete redirect;
-      delete mac_auth;
-      delete ip_server;
-      delete empty_str;
-      delete url_nodog;
-      delete cert_auth;
-      delete ap_address;
-      delete str_ffffff;
-      delete nodog_conf;
-      delete empty_list;
-      delete buffer_srv;
-      delete buffer_data;
-      delete cookie_auth;
-      delete ap_hostname;
-      delete auth_domain;
-      delete environment;
-      delete policy_flat;
-      delete policy_daily;
-      delete account_auth;
-      delete virtual_name;
-      delete title_default;
-      delete policy_traffic;
-      delete ldap_user_param;
-      delete ldap_card_param;
-      delete allowed_web_hosts;
-      delete ldap_session_param;
-      delete dir_server_address;
-      delete wiauth_card_basedn;
-      delete wiauth_user_basedn;
-      delete historical_log_dir;
-      delete max_time_no_traffic;
-      delete login_nodog_template;
-      delete wiauth_session_basedn;
-      delete message_page_template;
-      delete status_nodog_template;
-      delete status_network_template;
-      delete status_nodog_ap_template;
-      delete status_nodog_and_user_body_template;
+      U_DELETE(ip)
+      U_DELETE(ap)
+      U_DELETE(ts)
+      U_DELETE(uid)
+      U_DELETE(mac)
+      U_DELETE(realm)
+      U_DELETE(pbody)
+      U_DELETE(redir)
+      U_DELETE(token)
+      U_DELETE(label)
+      U_DELETE(policy)
+      U_DELETE(output)
+      U_DELETE(ap_ref)
+      U_DELETE(dir_reg)
+      U_DELETE(gateway)
+      U_DELETE(ip_auth)
+      U_DELETE(ap_label)
+      U_DELETE(redirect)
+      U_DELETE(mac_auth)
+      U_DELETE(ip_server)
+      U_DELETE(empty_str)
+      U_DELETE(url_nodog)
+      U_DELETE(cert_auth)
+      U_DELETE(ap_address)
+      U_DELETE(str_ffffff)
+      U_DELETE(nodog_conf)
+      U_DELETE(empty_list)
+      U_DELETE(buffer_srv)
+      U_DELETE(buffer_data)
+      U_DELETE(cookie_auth)
+      U_DELETE(ap_hostname)
+      U_DELETE(auth_domain)
+      U_DELETE(environment)
+      U_DELETE(policy_flat)
+      U_DELETE(policy_daily)
+      U_DELETE(account_auth)
+      U_DELETE(virtual_name)
+      U_DELETE(title_default)
+      U_DELETE(policy_traffic)
+      U_DELETE(ldap_user_param)
+      U_DELETE(ldap_card_param)
+      U_DELETE(allowed_web_hosts)
+      U_DELETE(ldap_session_param)
+      U_DELETE(dir_server_address)
+      U_DELETE(wiauth_card_basedn)
+      U_DELETE(wiauth_user_basedn)
+      U_DELETE(historical_log_dir)
+      U_DELETE(max_time_no_traffic)
+      U_DELETE(login_nodog_template)
+      U_DELETE(wiauth_session_basedn)
+      U_DELETE(message_page_template)
+      U_DELETE(status_nodog_template)
+      U_DELETE(status_network_template)
+      U_DELETE(status_nodog_ap_template)
+      U_DELETE(status_nodog_and_user_body_template)
 
-      delete time_done;
-      delete time_counter;
-      delete time_consumed;
-      delete time_available;
-      delete traffic_done;
-      delete traffic_counter;
-      delete traffic_consumed;
-      delete traffic_available;
+      U_DELETE(time_done)
+      U_DELETE(time_counter)
+      U_DELETE(time_consumed)
+      U_DELETE(time_available)
+      U_DELETE(traffic_done)
+      U_DELETE(traffic_counter)
+      U_DELETE(traffic_consumed)
+      U_DELETE(traffic_available)
 
-      delete date;
-      delete yearName;
-      delete monthName;
-      delete weekName;
+      U_DELETE(date)
+      U_DELETE(yearName)
+      U_DELETE(monthName)
+      U_DELETE(weekName)
 
-      delete user_UploadRate;
-      delete user_DownloadRate;
+      U_DELETE(user_UploadRate)
+      U_DELETE(user_DownloadRate)
 
-      if (sockp) delete sockp;
+      if (sockp) U_DELETE(sockp)
 
       if (help_url)
          {
-         delete des3_key;
-         delete telefono;
-         delete help_url;
-         delete login_url;
-         delete logout_url;
-         delete wallet_url;
-         delete password_url;
-         delete fmt_auth_cmd;
-         delete url_banner_ap;
-         delete redirect_default;
-         delete url_banner_comune;
-         delete registrazione_url;
+         U_DELETE(des3_key)
+         U_DELETE(telefono)
+         U_DELETE(help_url)
+         U_DELETE(login_url)
+         U_DELETE(logout_url)
+         U_DELETE(wallet_url)
+         U_DELETE(password_url)
+         U_DELETE(fmt_auth_cmd)
+         U_DELETE(url_banner_ap)
+         U_DELETE(redirect_default)
+         U_DELETE(url_banner_comune)
+         U_DELETE(registrazione_url)
          }
 
-      delete vuid;
-      delete table;
-      delete table1;
-      delete cache;
-      delete client;
-      delete vallow_IP_user;
-      delete vallow_IP_request;
-      delete admin_cache;
-      delete policy_cache;
+      U_DELETE(vuid)
+      U_DELETE(table)
+      U_DELETE(table1)
+      U_DELETE(cache)
+      U_DELETE(client)
+      U_DELETE(vallow_IP_user)
+      U_DELETE(vallow_IP_request)
+      U_DELETE(admin_cache)
+      U_DELETE(policy_cache)
 #  endif
 
-      delete   vap_rec;
-      delete  data_rec;
-      delete  user_rec;
-      delete nodog_rec;
-      delete db_filter_tavarnelle;
+      U_DELETE(vap_rec)
+      U_DELETE(data_rec)
+      U_DELETE(user_rec)
+      U_DELETE(nodog_rec)
+      U_DELETE(db_filter_tavarnelle)
       }
 
    (void) UFile::_unlink(NAMED_PIPE);
@@ -4103,7 +4126,7 @@ static bool checkIfUserConnected()
 
    if (user_exist)
       {
-      U_INTERNAL_ASSERT(u__isdigit(db_user->recval.c_char(0)))
+      U_INTERNAL_ASSERT(u__isdigit(db_user->getRecordValue().c_char(0)))
 
       // NB: db can have different users for the same ip...
 
@@ -4112,7 +4135,8 @@ static bool checkIfUserConnected()
          *uid = db_user->getKeyID();
 
          U_INTERNAL_ASSERT(*uid)
-         U_INTERNAL_ASSERT(user_rec->nodog)
+
+         if (user_rec->nodog.empty()) U_LOGGER("*** checkIfUserConnected() user_rec->nodog empty uid = %V ***", uid->rep);
 
          U_RETURN(true);
          }
@@ -4139,7 +4163,9 @@ static bool runAuthCmd(const char* password, const char* prealm)
 
    *output = UCommand::outputCommand(cmd, U_NULLPTR, -1, fd_stderr);
 
+#ifdef U_LOG_DISABLE
    UServer_Base::logCommandMsgError(cmd.data(), true);
+#endif
 
    if (UCommand::exit_value ||
        output->empty())
@@ -4230,8 +4256,7 @@ static bool askNodogToLogoutUser(const UString& _ip, const UString& _mac, bool b
       }
    else
       {
-      if (U_http_info.nResponseCode == 0 ||
-          U_http_info.nResponseCode == HTTP_MOVED_TEMP)
+      if (U_http_info.nResponseCode == HTTP_MOVED_TEMP)
          {
          // 4) (302) => (response from redirect to portal with request GET /info?... but portal NOT responding
 
@@ -4259,7 +4284,7 @@ static bool askNodogToLogoutUser(const UString& _ip, const UString& _mac, bool b
          U_RETURN(false);
          }
 
-      U_INTERNAL_DUMP("U_http_info.nResponseCode = %d", U_http_info.nResponseCode)
+      U_INTERNAL_DUMP("U_http_info.nResponseCode = %u", U_http_info.nResponseCode)
       }
 
 // U_LOGGER("*** LOGOUT SUCCESS: UID(%v) IP(%v) MAC(%v) AP(%v) ***", uid->rep, _ip.rep, _mac.rep, ap_address->rep);
@@ -4755,7 +4780,7 @@ static void setBufferForAdminEditAP()
    U_TRACE_NO_PARAM(5, "::setBufferForAdminEditAP()")
 
    if (db_user_filter_tavarnelle) (void) buffer_srv->assign(U_CONSTANT_TO_PARAM("tavarnelle.shtml?admin_edit_ap=0&"));
-   else                           (void) buffer_srv->assign(U_CONSTANT_TO_PARAM(                 "admin_edit_ap=?"));
+   else                           (void) buffer_srv->assign(U_CONSTANT_TO_PARAM(                 "admin_edit_ap?"));
 }
 
 static void GET_admin_edit_ap()
@@ -4901,7 +4926,7 @@ static UString printMonth(int month, int year)
 
       if ((i % 7) == 0) (void) result.append(U_CONSTANT_TO_PARAM("<tr>\n"));
 
-      (void) result.append(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("<td%.*s><a href=\"%vt=%u&i=86400\">%.*s%u%.*s</a></td>\n"),
+      (void) result.append(buffer, u__snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("<td%.*s><a href=\"%vt=%u&i=86400\">%.*s%u%.*s</a></td>\n"),
                               (bmonth          ? 0 : U_CONSTANT_SIZE(" class=\"inactive\""))," class=\"inactive\"", buffer_srv->rep, curr.getSecond(),
                               (btoday == false ? 0 : U_CONSTANT_SIZE("<strong>")),"<strong>", curr.getDay(),
                               (btoday == false ? 0 : U_CONSTANT_SIZE("</strong>")),"</strong>"));
@@ -5391,10 +5416,10 @@ static void GET_admin_view_using_historical()
             tmp2 = vec2[2];
             tmp3 = vec2[3];
 
-            tmp0.rep->unQuote();
-            tmp1.rep->unQuote();
-            tmp2.rep->unQuote();
-            tmp3.rep->unQuote();
+            tmp0.unQuote();
+            tmp1.unQuote();
+            tmp2.unQuote();
+            tmp3.unQuote();
 
             _totale1 += tmp1.strtoul();
             _totale2 += tmp2.strtoul();
@@ -5645,7 +5670,7 @@ static void GET_get_config()
                if (U_http_is_accept_gzip &&
                    _body.size() > U_MIN_SIZE_FOR_DEFLATE)
                   {
-                  _body = UStringExt::deflate(_body, 1);
+                  _body = UStringExt::deflate(_body, Z_DEFAULT_COMPRESSION);
                   }
 #           endif
                }
@@ -5689,7 +5714,7 @@ loop:    (void) nodog_rec->sendRequestToNodog(U_CONSTANT_TO_PARAM("check"), 0);
          {
          db_nodog->callForAllEntryWithVector(WiAuthNodog::checkAccessPoint);
 
-         if ((U_SRV_CNT_USR4++ % 10) == 0) resync();
+         if ((U_SRV_CNT_WIAUTH++ % 10) == 0) resync();
          }
 
       USSIPlugIn::setAlternativeResponse();
@@ -6181,7 +6206,7 @@ static void GET_login_validate()
 
    char buffer[128];
 
-   (void) u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%s%v"), (brenew ? "RENEW_" : ""), auth_domain->rep); 
+   (void) u__snprintf(buffer, U_CONSTANT_SIZE(buffer), U_CONSTANT_TO_PARAM("%s%v"), (brenew ? "RENEW_" : ""), auth_domain->rep); 
 
    user_rec->writeToLOG(buffer); // NB: writeToLOG() change time_counter and traffic_counter strings...
 
@@ -6856,7 +6881,7 @@ static void POST_admin_view_user()
 
          if (user_exist)
             {
-            last_modified = user_rec->last_modified + u_now_adjust;
+            last_modified = u_get_localtime(user_rec->last_modified);
 
             user_rec->getCounter();
 
@@ -7059,7 +7084,7 @@ static void POST_LoginRequest(bool idp)
             {
             // Check 4: Expired validity
 
-            if (UTimeDate::getSecondFromTime(NOT_AFTER.data(), true, "%4u%2u%2u%2u%2u%2uZ") <= u_now->tv_sec)
+            if (UTimeDate::getSecondFromDate(NOT_AFTER.data(), false, U_NULLPTR, "%4u%2u%2u%2u%2u%2uZ") <= u_now->tv_sec)
                {
                USSIPlugIn::setMessagePage(*message_page_template, "Validita' scaduta", "La tua validita' e' scaduta!");
 
@@ -7371,7 +7396,7 @@ static void POST_info()
    U_INTERNAL_ASSERT_EQUALS(UServer_Base::bssl, false)
 
 #ifdef USE_LIBZ
-   if (UStringExt::isGzip(*UClientImage_Base::body)) *UClientImage_Base::body = UStringExt::gunzip(*UClientImage_Base::body);
+   if (UStringExt::isGzip(*UHTTP::body)) *UHTTP::body = UStringExt::gunzip(*UHTTP::body);
 #endif
 
    uint32_t end;
@@ -7558,7 +7583,7 @@ static void POST_roaming()
    U_TRACE_NO_PARAM(5, "::POST_roaming()")
 
 #ifdef USE_LIBZ
-   if (UStringExt::isGzip(*UClientImage_Base::body)) *UClientImage_Base::body = UStringExt::gunzip(*UClientImage_Base::body);
+   if (UStringExt::isGzip(*UHTTP::body)) *UHTTP::body = UStringExt::gunzip(*UHTTP::body);
 #endif
 
    uint32_t end;
@@ -7861,7 +7886,7 @@ static void GET_error_ap()
 
                   if (elem->parseMask(vec[i+1]) == false)
                      {
-                     delete elem;
+                     U_DELETE(elem)
 
                      continue;
                      }

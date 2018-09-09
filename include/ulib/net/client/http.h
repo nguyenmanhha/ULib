@@ -33,7 +33,6 @@
  */
 
 class UHTTP;
-class UMimeHeader;
 class Application;
 class WiAuthNodog;
 class UServer_Base;
@@ -148,17 +147,17 @@ public:
 
    // ASYNC MODE (it creates a copy of itself, return pid child if parent)
 
-   int sendGETRequestAsync(const UString& _url, bool bqueue, const char* log_msg, int log_fd = -1)
+   int sendGETRequestAsync(const UString& _url, bool bqueue, const char* log_msg, int log_fd)
       { method_num = 0; return sendRequestAsync(_url, bqueue, log_msg, log_fd); }
 
-   int sendPOSTRequestAsync(const UString& _body, const UString& _url, bool bqueue, const char* log_msg, int log_fd = -1)
+   int sendPOSTRequestAsync(const UString& _body, const UString& _url, bool bqueue = false, const char* log_msg = U_NULLPTR, int log_fd = 0)
       { body = _body; method_num = 2; return sendRequestAsync(_url, bqueue, log_msg, log_fd); }
 
    // QUEUE MODE
 
    bool putRequestOnQueue();
 
-   bool sendPost(const UString& url, const UString& pbody,
+   bool sendPOST(const UString& url, const UString& body,
                  const char* content_type     =                 "application/x-www-form-urlencoded",
                  uint32_t    content_type_len = U_CONSTANT_SIZE("application/x-www-form-urlencoded"));
 
@@ -181,8 +180,7 @@ protected:
    uint32_t method_num;
    bool bFollowRedirects, bproxy;
 
-   static bool server_context_flag;
-   static struct uhttpinfo u_http_info_save;
+   static bool server_context_flag, data_chunked;
 
    bool sendRequestEngine();
    bool parseRequest(uint32_t n);
@@ -198,8 +196,9 @@ protected:
    // In response to a HTTP_UNAUTHORISED response from the HTTP server, this function will attempt to generate an Authentication header to satisfy the server
 
    UString getBasicAuthorizationHeader();
-   int     checkResponse(int& redirectCount);
-   bool    createAuthorizationHeader(bool bProxy);
+
+   int  checkResponse(int& redirectCount, const UString& _uri);
+   bool createAuthorizationHeader(bool bProxy, const UString& _uri);
 
    void setAuthorizationHeader(bool bProxy, const UString& headerValue)
       {
@@ -212,10 +211,10 @@ protected:
     UHttpClient_Base(UFileConfig* _cfg = U_NULLPTR);
    ~UHttpClient_Base()
       {
-      U_TRACE_UNREGISTER_OBJECT(0, UHttpClient_Base)
+      U_TRACE_DTOR(0, UHttpClient_Base)
 
-      delete requestHeader;
-      delete responseHeader;
+      U_DELETE(requestHeader)
+      U_DELETE(responseHeader)
       }
 
 private:
@@ -238,14 +237,14 @@ public:
 
    UHttpClient(UFileConfig* _cfg) : UHttpClient_Base(_cfg)
       {
-      U_TRACE_REGISTER_OBJECT(0, UHttpClient, "%p", _cfg)
+      U_TRACE_CTOR(0, UHttpClient, "%p", _cfg)
 
       U_NEW(Socket, UClient_Base::socket, Socket(UClient_Base::bIPv6));
       }
 
    ~UHttpClient()
       {
-      U_TRACE_UNREGISTER_OBJECT(0, UHttpClient)
+      U_TRACE_DTOR(0, UHttpClient)
       }
 
    // DEBUG
@@ -264,14 +263,14 @@ public:
 
    UHttpClient(UFileConfig* _cfg) : UHttpClient_Base(_cfg)
       {
-      U_TRACE_REGISTER_OBJECT(0, UHttpClient<USSLSocket>, "%p", _cfg)
+      U_TRACE_CTOR(0, UHttpClient<USSLSocket>, "%p", _cfg)
 
       UClient_Base::setSSLContext();
       }
 
    ~UHttpClient()
       {
-      U_TRACE_UNREGISTER_OBJECT(0, UHttpClient<USSLSocket>)
+      U_TRACE_DTOR(0, UHttpClient<USSLSocket>)
       }
 
    // DEBUG

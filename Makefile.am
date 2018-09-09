@@ -3,18 +3,21 @@
 AUTOMAKE_OPTIONS = no-dependencies ## dist-shar dist-zip
 ACLOCAL_AMFLAGS = -I m4
 
-EXTRA_DIST = cdb configure.help TODO LICENSE* README* *.spec* \
-	 			 ULib.m4 rpm.sh rpmpkgreq.lst rpmpkgreq.lst.suse openwrt \
-	 			 doc/Doxyfile doc/readme.txt shtool *.awk .travis.yml autogen.sh nativejson-benchmark \
-				 fuzz/http1-corpus fuzz/http2-corpus fuzz/build_libFuzzer.sh fuzz/Makefile.in fuzz/Makefile.am fuzz/uclient_fuzzer.cpp fuzz/uclient.cfg
+configfiles = userver.service
+
+EXTRA_DIST = $(configfiles:%=%.in) \
+				 cdb configure.help TODO LICENSE* README* *.spec* \
+	 			 doc/Doxyfile doc/readme.txt doc/style.css shtool *.awk .travis.yml autogen.sh nativejson-benchmark \
+	 			 ULib.m4 rpm.sh rpmpkgreq.lst rpmpkgreq.lst.suse openwrt CODE_OF_CONDUCT.md CONTRIBUTING.md \
+				 fuzz/http1-corpus fuzz/http2-corpus fuzz/build_libFuzzer.sh fuzz/Makefile.in fuzz/Makefile.am fuzz/*.cpp fuzz/uclient.cfg
 
 MAINTAINERCLEANFILES = configure aclocal.m4 libtool Makefile.in Makefile INSTALL
 
 moduledir = @ULIB_MODULEDIR@
 
-SUBDIRS  = include src/ulib
-if PLUGIN
-SUBDIRS += src/ulib/net/server/plugin src/ulib/orm/driver
+SUBDIRS = include src/ulib src/ulib/net/server/plugin
+if ENABLE_SHARED
+SUBDIRS += src/ulib/orm/driver
 endif
 if ENABLE_EXAMPLES
 SUBDIRS += examples
@@ -32,6 +35,10 @@ aclocal_DATA = ULib.m4
 
 ##README.html: README.md
 ##@Markdown.pl README.md > README.html
+
+##configure: configure.ac
+##	@echo "$< changed: you must re-run './autogen.sh'"
+##	@false
 
 test:
 	@cd $(top_builddir)/tests; $(MAKE) $(AM_MAKEFLAGS) test 
@@ -57,9 +64,7 @@ coverage_html:
 	@genhtml --ignore-errors source -o html coverage.info
 
 install-data-local:
-	@cd $(top_builddir)/src/ulib/net/server/plugin/usp; $(MAKE) $(AM_MAKEFLAGS) usp_compile.sh
-	@${INSTALL} -m 777 $(top_builddir)/libtool $(DESTDIR)${bindir}/usp_libtool.sh; \
-	 ${INSTALL} -m 777 $(top_builddir)/src/ulib/net/server/plugin/usp/usp_compile.sh $(DESTDIR)${bindir}
+	@${INSTALL} -m 777 $(top_builddir)/libtool $(DESTDIR)${bindir}/usp_libtool.sh
 
 dist-hook: cleandist
 
@@ -103,6 +108,8 @@ cleandist:
   		$(distdir)/src/ulib/orm/driver/.deps \
   		$(distdir)/src/ulib/orm/driver/.libs \
   		$(distdir)/src/ulib/orm/driver/Makefile \
+  		$(distdir)/src/ulib/orm/driver/libpq/Makefile \
+  		$(distdir)/src/ulib/orm/driver/libpq/libpq.la \
   		$(distdir)/src/ulib/net/server/plugin/*.o \
   		$(distdir)/src/ulib/net/server/plugin/*.l? \
   		$(distdir)/src/ulib/net/server/plugin/.deps \
@@ -149,6 +156,8 @@ cleandist:
 		$(distdir)/tests/examples/docroot/tmp \
 		$(distdir)/tests/examples/docroot/uploads \
 		$(distdir)/tests/examples/docroot/vuoto.txt \
+		$(distdir)/tests/examples/docroot/__BomB__.gz \
+		$(distdir)/tests/examples/docroot/servlet \
 		$(distdir)/tests/examples/docroot/www.sito1.com \
 		$(distdir)/tests/examples/ok/client_server.ok \
 		$(distdir)/tests/examples/ok/web_server_multiclient.ok \

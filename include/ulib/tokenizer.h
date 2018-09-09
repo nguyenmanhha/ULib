@@ -33,7 +33,7 @@ public:
 
    UTokenizer(const char* d = U_NULLPTR)
       {
-      U_TRACE_REGISTER_OBJECT(0, UTokenizer, "%S", d)
+      U_TRACE_CTOR(0, UTokenizer, "%S", d)
 
           s =
         end = U_NULLPTR;
@@ -42,7 +42,7 @@ public:
 
    UTokenizer(const UString& data, const char* d = U_NULLPTR) : str(data)
       {
-      U_TRACE_REGISTER_OBJECT(0, UTokenizer, "%V,%S", data.rep, d)
+      U_TRACE_CTOR(0, UTokenizer, "%V,%S", data.rep, d)
 
       s     = data.data();
       end   = data.pend();
@@ -51,7 +51,7 @@ public:
 
    ~UTokenizer()
       {
-      U_TRACE_UNREGISTER_OBJECT(0, UTokenizer)
+      U_TRACE_DTOR(0, UTokenizer)
       }
 
    bool atEnd()
@@ -76,6 +76,8 @@ public:
 
       str = data;
       end = (s = data.data()) + data.size();
+
+      U_INTERNAL_DUMP("size = %u end = %10S", data.size(), end)
       }
 
    void skipSpaces()
@@ -156,6 +158,17 @@ public:
       U_INTERNAL_ASSERT_MAJOR(s, str.data())
 
       --s;
+      }
+
+   // get previous char
+
+   char previous()
+      {
+      U_TRACE_NO_PARAM(0, "UTokenizer::previous()")
+
+      U_INTERNAL_ASSERT(s <= end)
+
+      U_RETURN(*(s-1));
       }
 
    // get current char

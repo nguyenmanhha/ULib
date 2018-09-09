@@ -91,7 +91,9 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(CRPWS,
 				[  --enable-CRPWS            enable Client Response Partial Write Support [[default=no]]])
 	if test -z "$enable_CRPWS"; then
-		if test "$enable_debug" = "yes"; then
+		if test "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO"; then
+			enable_CRPWS="no"
+		elif test "$enable_debug" = "yes"; then
 			enable_CRPWS="yes"
 		else
 			enable_CRPWS="no"
@@ -106,7 +108,11 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(captive-portal,
 				[  --enable-captive-portal   enable server captive portal mode [[default=no]]])
 	if test -z "$enable_captive_portal"; then
-		enable_captive_portal="no"
+		if test "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO"; then
+			enable_captive_portal="yes"
+		else
+			enable_captive_portal="no"
+		fi
 	fi
 	if test "$enable_captive_portal" = "yes"; then
 		AC_DEFINE(U_SERVER_CAPTIVE_PORTAL, 1, [enable server captive portal mode])
@@ -128,7 +134,9 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(HIS,
 				[  --enable-HIS              enable HTTP Inotify Support [[default=no]]])
 	if test -z "$enable_HIS" ; then
-		if test "$enable_debug" = "yes"; then
+		if test "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO"; then
+			enable_HIS="no"
+		elif test "$enable_debug" = "yes"; then
 			enable_HIS="yes"
 		else
 			enable_HIS="no"
@@ -158,7 +166,9 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(GSDS,
 				[  --enable-GSDS             enable GDB Stack Dump Support [[default=no]]])
 	if test -z "$enable_GSDS"; then
-		if test "$enable_debug" = "yes"; then
+		if test "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO"; then
+			enable_GSDS="no"
+		elif test "$enable_debug" = "yes"; then
 			enable_GSDS="yes"
 		else
 			enable_GSDS="no"
@@ -199,6 +209,17 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	fi
 	AC_MSG_RESULT([$enable_HPRS])
 
+	AC_MSG_CHECKING(if you want to enable Server-Sent Events support)
+	AC_ARG_ENABLE(SSE,
+				[  --enable-SSE              enable Server-Sent Events Support [[default=no]]])
+	if test -z "$enable_SSE"; then
+		enable_SSE="no"
+	fi
+	if test "$enable_SSE" = "yes"; then
+		AC_DEFINE(U_SSE_ENABLE, 1, [enable Server-Sent Events support])
+	fi
+	AC_MSG_RESULT([$enable_SSE])
+
 	AC_MSG_CHECKING(if you want to enable HTTP/2 support)
 	AC_ARG_ENABLE(http2,
 				[  --enable-http2            enable HTTP/2 support [[default=no]]])
@@ -214,7 +235,9 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(check-time,
 				[  --enable-check-time       enable server check time between request for parallelization [[default=no]]])
 	if test -z "$enable_check_time"; then
-		if test "$enable_debug" = "yes" -a "$enable_http2" != "yes"; then
+		if test "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO"; then
+			enable_check_time="no"
+		elif test "$enable_debug" = "yes" -a "$enable_http2" != "yes"; then
 			enable_check_time="yes"
 		else
 			enable_check_time="no"
@@ -246,6 +269,17 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 		AC_DEFINE(U_THROTTLING_SUPPORT, 1, [enable server bandwidth throttling support])
 	fi
 	AC_MSG_RESULT([$enable_throttling])
+
+	AC_MSG_CHECKING(if you want to enable to provide evasive action in the event of an HTTP DoS or DDoS attack or brute force attack)
+	AC_ARG_ENABLE(evasive,
+				[  --enable-evasive          enable server evasive action support [[default=no]]])
+	if test -z "$enable_evasive"; then
+		enable_evasive="no"
+	fi
+	if test "$enable_evasive" = "yes"; then
+		AC_DEFINE(U_EVASIVE_SUPPORT, 1, [enable server evasive action support])
+	fi
+	AC_MSG_RESULT([$enable_evasive])
 
 	AC_MSG_CHECKING(if you want to enable alias URI support)
 	AC_ARG_ENABLE(alias,
@@ -299,7 +333,9 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(HSTS,
 				[  --enable-HSTS             enable HTTP Strict Transport Security support [[default=no]]])
 	if test -z "$enable_HSTS"; then
-		if test "$enable_debug" = "yes"; then
+		if test "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO"; then
+			enable_HSTS="no"
+		elif test "$enable_debug" = "yes"; then
 			enable_HSTS="yes"
 		else
 			enable_HSTS="no"

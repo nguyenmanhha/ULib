@@ -198,7 +198,7 @@ char* realpath(const char* name, char* resolved_path)
 
 char* u_slashify(const char* src, char slash_from, char slash_to)
 {
-   static char u_slashify_buffer[PATH_MAX];
+   static char u_slashify_buffer[U_PATH_MAX];
 
    char* dst = u_slashify_buffer;
 
@@ -1969,7 +1969,7 @@ const char* getSysError_w32(unsigned* len)
       if (pBuffer[lenMsg-1] == '\n') --lenMsg;
       }
 
-   (void) snprintf(buffer, sizeof(buffer), "%s (%d, %.*s)", name, errno, lenMsg, pBuffer);
+   (void) snprintf(buffer, U_CONSTANT_SIZE(buffer), "%s (%d, %.*s)", name, errno, lenMsg, pBuffer);
 
    /* Free the buffer */
 

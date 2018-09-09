@@ -69,14 +69,14 @@ public:
 
    UModNoCatPeer() : UEventTime(0L,1L), mac(*UString::str_without_mac)
       {
-      U_TRACE_REGISTER_OBJECT(0, UModNoCatPeer, "", 0)
+      U_TRACE_CTOR(0, UModNoCatPeer, "")
 
       init();
       }
 
    virtual ~UModNoCatPeer()
       {
-      U_TRACE_UNREGISTER_OBJECT(0, UModNoCatPeer)
+      U_TRACE_DTOR(0, UModNoCatPeer)
       }
 
    // define method VIRTUAL of class UEventTime
@@ -190,6 +190,7 @@ protected:
    static UVector<UString>* vLoginValidate;
    static UVector<UString>* vInternalDevice;
    static UVector<UString>* vLocalNetworkLabel;
+   static UVector<UString>* vLocalNetworkSpec;
    static UVector<UIPAllow*>* vLocalNetworkMask;
 
    static void* pdata;
@@ -234,7 +235,6 @@ protected:
    static bool checkPeerInfo(UStringRep* key, void* value);
    static bool checkPeerStatus(UStringRep* key, void* value);
    static bool getPeerListInfo(UStringRep* key, void* value);
-   static void setHTTPResponse(const UString& content, int mime_index);
    static void permit(UString& UserDownloadRate, UString& UserUploadRate);
    static void sendMsgToPortal(uint32_t index_AUTH, const UString& msg, UString* poutput);
    static void sendData(uint32_t index_AUTH, const UString& data, const char* service, uint32_t service_len);
@@ -300,9 +300,7 @@ protected:
 
       (void) peer->fw.executeAndWait(U_NULLPTR, -1, fd_stderr);
 
-#  ifndef U_LOG_DISABLE
-      UServer_Base::logCommandMsgError(peer->fw.getCommand(), false);
-#  endif
+      U_SRV_LOG_CMD_MSG_ERR(peer->fw, false);
 
       U_peer_status = type;
       }

@@ -16,11 +16,15 @@
 
 /* Manage the header files to include */
 
-#ifdef HAVE_CONFIG_H
-#  include <ulib/internal/config.h>
-#  include <ulib/base/replace/replace.h>
-#else
-/* Minimal environment configuration */
+#include <ulib/internal/config.h>
+#include <ulib/base/replace/replace.h>
+
+#ifndef U_LIBEXECDIR
+#define U_LIBEXECDIR "/usr/local/libexec/ulib"
+#endif
+
+/*
+#ifndef HAVE_CONFIG_H
 #  define HAVE_CXX11 1
 #  define HAVE_CXX14 1
 #  define ENABLE_LFS 1
@@ -39,21 +43,18 @@
 #  define PACKAGE_NAME "ULib"
 #  define HAVE_NETINET_IN_H 1
 #  define ULIB_VERSION "1.4.2"
-#  define USE_HARDWARE_CRC32 1
 #  define HAVE_SYS_SENDFILE_H 1
 #  define PACKAGE_VERSION "1.4.2"
 #  define HAVE_NETPACKET_PACKET_H 1
-#  define FNM_PATHNAME (1 << 0) /* No wildcard can ever match '/' */
-#  define FNM_NOESCAPE (1 << 1) /* Backslashes don't quote special chars */
-#  define FNM_PERIOD   (1 << 2) /* Leading '.' is matched only explicitly */
+#  define FNM_PATHNAME (1 << 0)
+#  define FNM_NOESCAPE (1 << 1)
+#  define FNM_PERIOD   (1 << 2)
 #  define U_CACHE_REQUEST_DISABLE 1
 #  define U_PIPELINE_HOMOGENEOUS_DISABLE 1
 #  define restrict
 #  include <ulib/internal/platform.h>
-#  ifndef U_LIBEXECDIR
-#  define U_LIBEXECDIR "/usr/libexec/ulib"
-#  endif
 #endif
+*/
 
 #ifdef U_LINUX
 # ifdef HAVE__USR_SRC_LINUX_INCLUDE_GENERATED_UAPI_LINUX_VERSION_H
@@ -80,53 +81,47 @@
 #  endif
 #endif
 
-#ifdef __clang__
-#  ifdef  NULL
-#  undef  NULL
-#  endif
-#  define NULL 0
-#  include <wchar.h>
-#  ifdef ENABLE_THREAD
-/*typedef pthread_t        __gthread_t;*/
-/*typedef pthread_key_t    __gthread_key_t;*/
-/*typedef pthread_once_t   __gthread_once_t;*/
-  typedef pthread_mutex_t  __gthread_mutex_t;
-/*typedef pthread_mutex_t  __gthread_recursive_mutex_t;*/
-/*typedef pthread_cond_t   __gthread_cond_t;*/
-/*typedef struct timespec  __gthread_time_t;*/
-#  endif
-#  define U_DO_PRAGMA(x)
-#  define U_DUMP_KERNEL_VERSION(x)
-#  define CLANG_VERSION_NUM (__clang_major__  * 10000 + \
-                             __clang_minor__  *   100)
-#elif defined(U_CSP_INTERFACE)
-#  define U_DO_PRAGMA(x)
-#  define U_DUMP_KERNEL_VERSION(x)
-#else
-#  define U_DO_PRAGMA(x) _Pragma (#x)
-#  define U_DUMP_KERNEL_VERSION(x) U_DO_PRAGMA(message (#x " = " U_STRINGIFY(x)))
-#endif
-
 /* Checks define */
-#if defined(USE_LOAD_BALANCE) && defined(_MSWINDOWS_)
+
+#ifdef USE_LOAD_BALANCE
+#  ifdef _MSWINDOWS_
 #     undef USE_LOAD_BALANCE
 U_DO_PRAGMA(message ("Sorry I was compiled on Windows so I cannot use load balance"))
+#  elif !defined(ENABLE_THREAD)
+#     undef USE_LOAD_BALANCE
+U_DO_PRAGMA(message ("Sorry I was compiled without thread enabled so I cannot use load balance"))
+#  endif
 #endif
 #if defined(U_THROTTLING_SUPPORT) && !defined(U_HTTP2_DISABLE)
-#     undef U_THROTTLING_SUPPORT
+#  undef U_THROTTLING_SUPPORT
 U_DO_PRAGMA(message ("Sorry I was compiled with http2 enabled so I cannot support bandwidth throttling"))
 #endif
 #if defined(U_SERVER_CHECK_TIME_BETWEEN_REQUEST) && !defined(U_HTTP2_DISABLE)
-#     undef U_SERVER_CHECK_TIME_BETWEEN_REQUEST
+#  undef U_SERVER_CHECK_TIME_BETWEEN_REQUEST
 U_DO_PRAGMA(message ("Sorry I was compiled with http2 enabled so I cannot support check time between request"))
 #endif
 #if !defined(U_CACHE_REQUEST_DISABLE) && !defined(U_HTTP2_DISABLE)
-#     define U_CACHE_REQUEST_DISABLE
+#  define U_CACHE_REQUEST_DISABLE
 U_DO_PRAGMA(message ("Sorry I was compiled with http2 enabled so I cannot support cache request"))
 #endif
 #if defined(U_HTTP_INOTIFY_SUPPORT) && defined(U_SERVER_CAPTIVE_PORTAL)
-#     undef U_HTTP_INOTIFY_SUPPORT
+#  undef U_HTTP_INOTIFY_SUPPORT
 U_DO_PRAGMA(message ("Sorry I was compiled with server captive portal mode enabled so I cannot support http inotify"))
+#endif
+#if defined(HAVE_CXX17) && defined(__GNUC__) && !defined(HAVE_CONFIG_H)
+U_DO_PRAGMA(message ("ULib is configured with C++17 support, so you must use the -std=gnu++17 g++ option for compilation"))
+#endif
+#if defined(USE_HARDWARE_CRC32) && defined(__GNUC__) && !defined(HAVE_CONFIG_H) /* The built-in functions __builtin_ia32_crc32 are available when -mcrc32 is used */
+U_DO_PRAGMA(message ("ULib is configured with crc32 intrinsics support, so you must use the -mcrc32 g++ option for compilation"))
+#endif
+#ifdef U_SSE_ENABLE // SERVER SENT EVENTS (SSE)
+#  ifndef U_LINUX
+#     undef U_SSE_ENABLE
+U_DO_PRAGMA(message ("Sorry I was not compiled on Linux so I cannot use SSE"))
+#  elif !defined(ENABLE_THREAD)
+#     undef U_SSE_ENABLE
+U_DO_PRAGMA(message ("Sorry I was compiled without thread enabled so I cannot use SSE"))
+#  endif
 #endif
 
 #include <stddef.h>
@@ -138,6 +133,7 @@ U_DO_PRAGMA(message ("Sorry I was compiled with server captive portal mode enabl
 #include <limits.h>
 
 /* Defs */
+
 #include <ulib/base/color.h>
 #include <ulib/base/macro.h>
 
@@ -176,7 +172,7 @@ U_DO_PRAGMA(message ("Sorry I was compiled with server captive portal mode enabl
 #  endif
 #endif
 
-#define U_BUFFER_SIZE 8192
+#define U_BUFFER_SIZE (8192-1) // NB: -1 because we want space for null-terminator...
 
 /* C++11 keywords and expressions */
 
@@ -190,26 +186,29 @@ U_DO_PRAGMA(message ("Sorry I was compiled with server captive portal mode enabl
 extern "C" {
 #endif
 
-typedef int   (*iPF)     (void);
-typedef bool  (*bPF)     (void);
-typedef void  (*vPF)     (void);
-typedef void* (*pvPF)    (void);
-typedef bool  (*bPFi)    (int);
-typedef void  (*vPFi)    (int);
-typedef void  (*vPFpv)   (void*);
-typedef bool  (*bPFpv)   (void*);
-typedef int   (*iPFpv)   (void*);
-typedef bool  (*bPFpc)   (const char*);
-typedef void  (*vPFpc)   (const char*);
-typedef void* (*pvPFpv)  (void*);
-typedef bool  (*bPFpcu)  (const char*,uint32_t);
-typedef void  (*vPFpvu)  (void*,uint32_t);
-typedef int   (*iPFpvpv) (void*,void*);
-typedef bool  (*bPFpvpv) (void*,void*);
-typedef bool  (*bPFpcpc) (const char*,const char*);
-typedef bool  (*bPFpcpv) (const char*,const void*);
-typedef void  (*vPFpvpc) (void*,char*);
-typedef void  (*vPFpvpv) (void*,void*);
+typedef int   (*iPF)      (void);
+typedef bool  (*bPF)      (void);
+typedef void  (*vPF)      (void);
+typedef void* (*pvPF)     (void);
+typedef bool  (*bPFi)     (int);
+typedef void  (*vPFi)     (int);
+typedef void  (*vPFu)     (uint32_t);
+typedef void  (*vPFpv)    (void*);
+typedef bool  (*bPFpv)    (void*);
+typedef int   (*iPFpv)    (void*);
+typedef bool  (*bPFpc)    (const char*);
+typedef void  (*vPFpc)    (const char*);
+typedef void* (*pvPFpv)   (void*);
+typedef void  (*vpFpcu)   (const char*,uint32_t);
+typedef bool  (*bPFpcu)   (const char*,uint32_t);
+typedef void  (*vPFpvu)   (void*,uint32_t);
+typedef int   (*iPFpvpv)  (void*,void*);
+typedef bool  (*bPFpvpv)  (void*,void*);
+typedef bool  (*bPFpcpv)  (const char*,void*);
+typedef bool  (*bPFpcpc)  (const char*,const char*);
+typedef void  (*vPFpvpc)  (void*,char*);
+typedef void  (*vPFpvpv)  (void*,void*);
+typedef void  (*vPFpvpvu) (void*,void*,uint32_t);
 
 typedef char* (*pcPFdpc)   (double,char*);
 typedef char* (*pcPFu32pc) (uint32_t,char*);
@@ -219,6 +218,8 @@ typedef void* (*pvPFpvpb)  (void*,bool*);
 typedef int   (*qcompare)  (const void*,const void*);
 typedef void  (*vPFpvpcpc) (void*,char*,char*);
 typedef void* (*pvPFpvpvs) (void*,const void*,size_t);
+
+typedef uint32_t (*uPFpcu) (const char*,uint32_t);
 
 typedef struct U_DATA {
    unsigned char* dptr;
@@ -247,15 +248,17 @@ typedef struct ustringrep {
 
 typedef struct ustring { struct ustringrep* rep; } ustring;
 
+#define U_PATH_MAX (1024U - (1 + sizeof(ustringrep)))
+
 /* Internal buffer */
 
 extern U_EXPORT char* u_buffer;
-extern U_EXPORT char* u_err_buffer;
+extern U_EXPORT char u_err_buffer[256];
 extern U_EXPORT uint32_t u_buffer_len; /* assert that u_buffer is busy if u_buffer_len != 0 */
 
 /* Startup */
 
-extern U_EXPORT pid_t u_pid;
+extern U_EXPORT pid_t    u_pid;
 extern U_EXPORT char     u_pid_str[10];
 extern U_EXPORT uint32_t u_pid_str_len;
 extern U_EXPORT uint32_t u_progname_len;
@@ -284,19 +287,22 @@ U_EXPORT void u_getcwd(void);
 
 /* Time services */
 
-extern U_EXPORT bool u_daylight;
-extern U_EXPORT int u_now_adjust;   /* GMT based time */
+extern U_EXPORT bool* u_pdaylight;
+extern U_EXPORT int* u_pnow_adjust;
 extern U_EXPORT time_t u_start_time;
 extern U_EXPORT void* u_pthread_time; /* pthread clock */
-
 extern U_EXPORT struct timeval* u_now;
 extern U_EXPORT struct tm u_strftime_tm;
-extern U_EXPORT struct timeval u_timeval;
 extern U_EXPORT const char* u_day_name[7];    /* "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" */
 extern U_EXPORT const char* u_month_name[12]; /* "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" */
 
 U_EXPORT bool     u_setStartTime(void);
+U_EXPORT time_t   u_getLocalNow(time_t sec);
 U_EXPORT unsigned u_getMonth(const char* buf) __pure;
+
+static inline bool     u_is_daylight(void)           { return *u_pdaylight; }
+static inline uint32_t u_get_localtime(uint32_t sec) { return (sec + *u_pnow_adjust); }
+static inline uint32_t u_getLocalTime(void)          { return u_get_localtime(u_now->tv_sec); }
 
 /* Services */
 
@@ -310,6 +316,7 @@ extern U_EXPORT bool u_exec_failed;
 extern U_EXPORT char u_user_name[32];
 extern U_EXPORT uint32_t u_flag_sse; /* detect SSE2, SSSE3, SSE4.2 */
 extern U_EXPORT uint32_t u_m_w, u_m_z;
+extern U_EXPORT const char* u_trace_folder;
 extern U_EXPORT const char* u_short_units[6]; /* { "B", "KB", "MB", "GB", "TB", 0 } */
 extern U_EXPORT const char* restrict u_tmpdir;
 extern U_EXPORT char u_hostname[HOST_NAME_MAX+1];
@@ -320,10 +327,6 @@ U_EXPORT void u_init_ulib_username(void);
 U_EXPORT void u_init_ulib_hostname(void);
 U_EXPORT void u_init_http_method_list(void);
 
-U_EXPORT const char* u_basename(const char* restrict path) __pure;
-U_EXPORT const char* u_getsuffix(const char* restrict path, uint32_t len) __pure;
-U_EXPORT bool u_is_overlap(const char* restrict dst, const char* restrict src, size_t n);
-
 /* Location info */
 
 extern U_EXPORT uint32_t u_num_line;
@@ -333,12 +336,14 @@ extern U_EXPORT const char* restrict u_name_function;
 /* MIME type identification */
 
 static inline bool u_is_gz(int mime_index)     { return (mime_index == U_gz); }
+static inline bool u_is_br(int mime_index)     { return (mime_index == U_br); }
 static inline bool u_is_js(int mime_index)     { return (mime_index == U_js); }
 static inline bool u_is_css(int mime_index)    { return (mime_index == U_css); }
 static inline bool u_is_gif(int mime_index)    { return (mime_index == U_gif); }
 static inline bool u_is_jpg(int mime_index)    { return (mime_index == U_jpg); }
 static inline bool u_is_png(int mime_index)    { return (mime_index == U_png); }
 static inline bool u_is_flv(int mime_index)    { return (mime_index == U_flv); }
+static inline bool u_is_svg(int mime_index)    { return (mime_index == U_svg); }
 static inline bool u_is_html(int mime_index)   { return (mime_index == U_html); }
 
 static inline bool u_is_usp(int mime_index)    { return (mime_index == U_usp); }
@@ -361,7 +366,13 @@ static inline bool u_is_cacheable(int mime_index) { return (u_is_js(mime_index) 
                                                             u_is_css(mime_index) ||
                                                             u_is_img(mime_index) ||
                                                             u_is_ssi(mime_index) ||
+                                                            u_is_svg(mime_index) ||
                                                             u_is_html(mime_index)); }
+
+static inline bool u_is_compressable(int mime_index) { return (u_is_ssi(mime_index) == false &&
+                                                               u_is_gz( mime_index) == false &&
+                                                               u_is_br( mime_index) == false); }
+
 
 /**
  * Print with format extension: bBCDHMNOPQrRSvVUYwW
@@ -504,6 +515,8 @@ static inline void u_gettimenow(void)
 #endif
 */
 
+U_EXPORT uint32_t u_isDayOfWeek(const char* restrict str) __pure;
+
 U_EXPORT      uint32_t u_strftime1(char* restrict buffer, uint32_t buffer_size, const char* restrict fmt, uint32_t fmt_size);
 static inline uint32_t u_strftime2(char* restrict buffer, uint32_t buffer_size, const char* restrict fmt, uint32_t fmt_size, time_t when)
 {
@@ -567,6 +580,76 @@ static inline char* u_dtoa(double num, char* restrict cp)
       }
 
    return u_dbl2str(num, cp);
+}
+
+static inline bool u_is_overlap(const char* restrict dst, const char* restrict src, size_t n)
+{
+   U_INTERNAL_TRACE("u_is_overlap(%p,%p,%lu)", dst, src, n)
+
+   U_INTERNAL_ASSERT_MAJOR(n, 0)
+
+        if (src < dst) return ((src + n - 1) >= dst);
+   else if (dst < src) return ((dst + n - 1) >= src);
+
+   /* They start at same place. Since we know neither of them has zero length, they must overlap */
+
+   U_INTERNAL_ASSERT_EQUALS(dst, src)
+
+   return true;
+}
+
+static inline __pure const char* u_basename(const char* restrict path, uint32_t len)
+{
+   const char* restrict ptr;
+
+   U_INTERNAL_TRACE("u_basename(%.*s,%u)", U_min(len,128), path, len)
+
+   U_INTERNAL_ASSERT_MAJOR(len, 0)
+   U_INTERNAL_ASSERT_POINTER(path)
+
+   /**
+    * NB: we can have something like 'www.sito1.com/tmp'...
+    *
+    * for (ptr = path+len-2; ptr > path; --ptr) if (IS_DIR_SEPARATOR(*ptr)) return ptr+1;
+    */
+
+   ptr = (const char* restrict) memrchr(path, PATH_SEPARATOR, len);
+
+   return (ptr ? ptr+1 : path);
+}
+
+static inline const char* u_getsuffix(const char* restrict path, uint32_t len)
+{
+   char c;
+   const char* restrict ptr;
+
+   U_INTERNAL_TRACE("u_getsuffix(%.*s,%u)", U_min(len,128), path, len)
+
+   U_INTERNAL_ASSERT_MAJOR(len, 0)
+   U_INTERNAL_ASSERT_POINTER(path)
+
+   /**
+    * NB: we can have something like 'www.sito1.com/tmp'...
+    *
+    * ptr = (const char*) memrchr(path, '.', len);
+    *
+    * return (ptr && memrchr(ptr+1, '/', len-(ptr+1-path)) == 0 ? ptr : 0);
+    */
+
+   for (ptr = path+len-2; ptr >= path; --ptr)
+      {
+      c = *ptr;
+
+      if (c == '.' ||
+          IS_DIR_SEPARATOR(c))
+         {
+         if (c == '.') return ptr;
+
+         return U_NULLPTR;
+         }
+      }
+
+   return U_NULLPTR;
 }
 
 #ifdef __cplusplus

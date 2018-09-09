@@ -39,6 +39,11 @@
 #include <ulib/json/value.h>
 #include <ulib/application.h>
 #include <ulib/utility/interrupt.h>
+#include <ulib/serialize/flatbuffers.h>
+
+#ifdef USE_LIBZ
+#  include <ulib/base/coder/gzio.h>
+#endif
 
 #ifndef HAVE_POLL_H
 #  include <ulib/notifier.h>
@@ -109,19 +114,37 @@ static struct ustringrep u_empty_string_rep_storage = {
    0, /* _length */
    0, /* _capacity */
    0, /* references */
-  ""  /* str - NB: we need an address (see c_str() or isNullTerminated()) and must be null terminated... */
+   "" /* str - NB: we need an address (see c_str() or isNullTerminated()) and must be null terminated... */
 };
 
-static struct ustring u_empty_string_storage = { &u_empty_string_rep_storage };
+static struct ustringrep u_buffer_string_rep_storage = {
+# ifdef DEBUG
+   (void*)U_CHECK_MEMORY_SENTINEL, /* memory_error (_this) */
+# endif
+# if defined(U_SUBSTR_INC_REF) || defined(DEBUG)
+   U_NULLPTR, /* parent - substring increment reference of source string */
+#  ifdef DEBUG
+   0, /* child  - substring capture event 'DEAD OF SOURCE STRING WITH CHILD ALIVE'... */
+#  endif
+# endif
+   0, /* _length */
+   U_BUFFER_SIZE, /* _capacity */
+   1, /* references */
+   "" /* str - NB: we need an address (see c_str() or isNullTerminated()) and must be null terminated... */
+};
+
+static struct ustring u_empty_string_storage  = { &u_empty_string_rep_storage };
+static struct ustring u_buffer_string_storage = { &u_buffer_string_rep_storage };
 
 uustring    ULib::uustringnull    = { &u_empty_string_storage };
+uustring    ULib::uustringubuffer = { &u_buffer_string_storage };
 uustringrep ULib::uustringrepnull = { &u_empty_string_rep_storage };
 
-void ULib::init(const char* mempool, char** argv)
+void ULib::init(char** argv, const char* mempool)
 {
    u_init_ulib(argv);
 
-   U_TRACE(1, "ULib::init(%S,%p)", mempool, argv)
+   U_TRACE(1, "ULib::init(%p,%S)", argv, mempool)
 
    // conversion number => string
 
@@ -135,9 +158,11 @@ void ULib::init(const char* mempool, char** argv)
    UMemoryPool::func_call = __PRETTY_FUNCTION__;
 
    U_INTERNAL_ASSERT_EQUALS(u_dbl2str(1234567890, buffer)-buffer, 12)
+   U_INTERNAL_DUMP("buffer = %.12S", buffer)
    U_INTERNAL_ASSERT_EQUALS(memcmp(buffer, "1234567890.0", 12), 0)
 
    U_INTERNAL_ASSERT_EQUALS(u_num2str64(1234567890, buffer)-buffer, 10)
+   U_INTERNAL_DUMP("buffer = %.10S", buffer)
    U_INTERNAL_ASSERT_EQUALS(memcmp(buffer, "1234567890", 10), 0)
 #endif
 
@@ -154,10 +179,12 @@ void ULib::init(const char* mempool, char** argv)
 
    U_INTERNAL_DUMP("u_progname(%u) = %.*S u_cwd(%u) = %.*S", u_progname_len, u_progname_len, u_progname, u_cwd_len, u_cwd_len, u_cwd)
 
-   // allocation from memory pool
+#ifndef ENABLE_MEMPOOL // allocation from memory pool
+   u_buffer = (char*) U_SYSCALL(malloc, "%u", U_BUFFER_SIZE+1);
+#else
+   // check if we want some preallocation for memory pool - start from 1... (Ex: 768,768,0,1536,2085,0,0,0,121)
 
-#if defined(ENABLE_MEMPOOL) // check if we want some preallocation for memory pool
-   const char* ptr = (mempool ? (UValue::jsonParseFlags = 2, mempool) : U_SYSCALL(getenv, "%S", "UMEMPOOL")); // start from 1... (Ex: 768,768,0,1536,2085,0,0,0,121)
+   const char* ptr = (mempool ? (UValue::jsonParseFlags = 2, mempool) : U_SYSCALL(getenv, "%S", "UMEMPOOL"));
 
    // coverity[tainted_scalar]
    if (           ptr &&
@@ -166,32 +193,49 @@ void ULib::init(const char* mempool, char** argv)
       UMemoryPool::allocateMemoryBlocks(ptr);
       }
 
-   U_INTERNAL_ASSERT_EQUALS(U_BUFFER_SIZE, U_MAX_SIZE_PREALLOCATE * 2)
+   U_INTERNAL_ASSERT_EQUALS(U_BUFFER_SIZE+1, U_MAX_SIZE_PREALLOCATE * 2)
 
    ptr      = (char*) UMemoryPool::pop(U_SIZE_TO_STACK_INDEX(U_MAX_SIZE_PREALLOCATE));
    u_buffer = (char*) UMemoryPool::pop(U_SIZE_TO_STACK_INDEX(U_MAX_SIZE_PREALLOCATE));
 
    if (ptr < u_buffer) u_buffer = (char*)ptr;
 
-   u_err_buffer = (char*) UMemoryPool::pop(U_SIZE_TO_STACK_INDEX(256));
-
    U_INTERNAL_DUMP("ptr = %p u_buffer = %p diff = %ld", ptr, u_buffer, ptr - u_buffer)
-
-# ifdef DEBUG
-   UMemoryError::pbuffer = (char*) UMemoryPool::pop(U_SIZE_TO_STACK_INDEX(U_MAX_SIZE_PREALLOCATE));
-# endif
-#else
-   u_buffer     = (char*) U_SYSCALL(malloc, "%u", U_BUFFER_SIZE);
-   u_err_buffer = (char*) U_SYSCALL(malloc, "%u", 256);
-
-# ifdef DEBUG
-   UMemoryError::pbuffer = (char*) U_SYSCALL(malloc, "%u", U_MAX_SIZE_PREALLOCATE);
-# endif
 #endif
+
+   u_buffer[U_BUFFER_SIZE] = '\0';
+
+   UFlatBuffer::setBuffer((uint8_t*)u_buffer, U_BUFFER_SIZE);
+   UFlatBuffer::setStack((uint8_t*)u_err_buffer, U_CONSTANT_SIZE(u_err_buffer));
+
+#if defined(U_STATIC_ONLY)
+   if (UStringRep::string_rep_null == U_NULLPTR)
+      {
+      UString::string_null        = uustringnull.p2;
+      UString::string_u_buffer    = uustringubuffer.p2;
+      UStringRep::string_rep_null = uustringrepnull.p2;
+      }
+#endif
+
+   U_INTERNAL_ASSERT_EQUALS(sizeof(UStringRep), sizeof(ustringrep))
+
+   UString::string_u_buffer->rep->str = u_buffer;
+
+   U_INTERNAL_DUMP("u_is_tty = %b string_rep_null = %p string_null = %p string_u_buffer = %p string_u_buffer->data() = %p",
+                    u_is_tty, UStringRep::string_rep_null, UString::string_null, UString::string_u_buffer, UString::string_u_buffer->data())
+
+   U_INTERNAL_ASSERT(UString::string_null->invariant())
+   U_INTERNAL_ASSERT(UString::string_u_buffer->invariant())
+
+   UString::str_allocate(0);
 
    UString::ptrbuf =
    UString::appbuf = (char*)UMemoryPool::pop(U_SIZE_TO_STACK_INDEX(1024));
    UFile::cwd_save = (char*)UMemoryPool::pop(U_SIZE_TO_STACK_INDEX(1024));
+
+#ifdef USE_LIBZ
+   u_gz_deflate_header = true;
+#endif
 
 #if defined(DEBUG) && defined(U_STDCPP_ENABLE)
 # ifdef DEBUG
@@ -237,20 +281,6 @@ void ULib::init(const char* mempool, char** argv)
    __asm__("pushf\norl $0x40000,(%rsp)\npopf"); // Enable Alignment Checking on x86_64
 # endif
 #endif
-
-   U_INTERNAL_ASSERT_EQUALS(sizeof(UStringRep), sizeof(ustringrep))
-
-#if defined(U_STATIC_ONLY)
-   if (UStringRep::string_rep_null == U_NULLPTR)
-      {
-      UString::string_null        = uustringnull.p2;
-      UStringRep::string_rep_null = uustringrepnull.p2;
-      }
-#endif
-
-   UString::str_allocate(0);
-
-   U_INTERNAL_DUMP("u_is_tty = %b UStringRep::string_rep_null = %p UString::string_null = %p", u_is_tty, UStringRep::string_rep_null, UString::string_null)
 
    /**
    * NB: there are to many exceptions...
@@ -312,7 +342,9 @@ void ULib::init(const char* mempool, char** argv)
 
 void ULib::end()
 {
-   
+   U_INTERNAL_ASSERT_EQUALS(ULog::first, U_NULLPTR)
+   U_INTERNAL_ASSERT_EQUALS(USemaphore::first, U_NULLPTR)
+
 #if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    UApplication::printMemUsage();
 #endif

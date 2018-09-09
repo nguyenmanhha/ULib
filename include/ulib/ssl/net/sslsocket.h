@@ -233,7 +233,7 @@ public:
     * downloading OCSP responses
     */
 
-#if !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
+#if defined(ENABLE_THREAD) && !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
    typedef struct stapling {
       void* data;
       X509* cert;
@@ -327,7 +327,7 @@ private:
 #  endif
 
 #  if U_USE_ALPN
-      U_SYSCALL_VOID(SSL_CTX_set_alpn_select_cb, "%p,%p,%p", ctx, selectProto, 0); // ALPN selection callback
+      U_SYSCALL_VOID(SSL_CTX_set_alpn_select_cb, "%p,%p,%p", ctx, selectProto, U_NULLPTR); // ALPN selection callback
 #  endif
       }
 #endif

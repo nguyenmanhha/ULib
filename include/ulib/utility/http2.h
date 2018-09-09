@@ -117,7 +117,7 @@ public:
     Connection();
    ~Connection()
       {
-      U_TRACE_UNREGISTER_OBJECT(0, Connection)
+      U_TRACE_DTOR(0, Connection)
       }
 
    void reset()
@@ -136,7 +136,8 @@ public:
       {
       U_TRACE(0+256, "UHTTP2::Connection::preallocate(%u)", max_connection)
 
-      U_INTERNAL_ASSERT_EQUALS(vConnection, 0)
+      U_INTERNAL_ASSERT_MAJOR(max_connection, 0)
+      U_INTERNAL_ASSERT_EQUALS(vConnection, U_NULLPTR)
 
       U_INTERNAL_DUMP("sizeof(Connection) = %u sizeof(Stream) = %u", sizeof(Connection), sizeof(Stream))
 
@@ -404,16 +405,7 @@ protected:
       {
       U_TRACE(0, "UHTTP2::writev(%p,%d,%u)", iov, iovcnt, count)
 
-      U_DUMP_IOVEC(iov,iovcnt)
-
-      int iBytesWrite =
-#  if defined(USE_LIBSSL) || defined(_MSWINDOWS_)
-      USocketExt::writev( UServer_Base::csocket, iov, iovcnt, count, 0);
-#  else
-      USocketExt::_writev(UServer_Base::csocket, iov, iovcnt, count, 0);
-#  endif
-
-      if (iBytesWrite == (int)count) U_RETURN(true);
+      if (USocketExt::writev(UServer_Base::csocket, iov, iovcnt, count, 0) == count) U_RETURN(true);
 
       nerror = CONNECT_ERROR;
 
@@ -522,17 +514,13 @@ protected:
    static void wrapRequest();
 #endif
 
-   static bool setIndexStaticTable(UHashMap<void*>* table, const char* key, uint32_t length)
+   static bool setIndexStaticTable(UHashMap<void*>* table)
       {
-      U_TRACE(0, "UHTTP2::setIndexStaticTable(%p,%.*S,%u)", table, length, key, length)
+      U_TRACE(0, "UHTTP2::setIndexStaticTable(%p)", table)
 
-   // if (bhash) table->hash = u_hash_ignore_case((unsigned char*)key, length);
+   // if (bhash) UHashMap<void*>::lhash = u_hash_ignore_case((unsigned char*)U_STRING_TO_PARAM(*UHashMap<void*>::lkey));
 
-      U_INTERNAL_DUMP("table->hash = %u", table->hash)
-
-      U_INTERNAL_ASSERT_MAJOR(table->hash, 0)
-
-      table->index = table->hash % table->_capacity;
+      UHashMap<void*>::setIdx(table);
 
       U_RETURN(true); // NB: ignore case...
       }
@@ -669,7 +657,7 @@ protected:
       entry->value->release();
 
       entry->name  =
-      entry->value = 0;
+      entry->value = U_NULLPTR;
       }
 
    static void evictHpackDynTblFirstEntry(HpackDynamicTable* dyntbl)
@@ -778,13 +766,9 @@ protected:
       {
       U_TRACE(0, "UHTTP2::findHeader(%u)", index)
 
-      UHashMap<UString>* table = &(pConnection->dtable);
+      UHashMap<void*>::lhash = hash_static_table[index];
 
-      table->hash = hash_static_table[index];
-
-      table->lookup(hpack_static_table[index].name);
-
-      if (table->node) U_RETURN(true);
+      if (pConnection->dtable.lookup(hpack_static_table[index].name)) U_RETURN(true);
 
       U_RETURN(false);
       }
@@ -814,13 +798,11 @@ protected:
     * {
     * U_TRACE(0, "UHTTP2::eraseHeader(%u)", index)
     *
+    * UHashMap<void*>::lhash = hash_static_table[index];
+    *
     * UHashMap<UString>* table = &(pConnection->itable);
     *
-    * table->hash = hash_static_table[index];
-    *
-    * table->lookup(hpack_static_table[index].name);
-    *
-    * if (table->node) table->eraseAfterFind();
+    * if (table->lookup(hpack_static_table[index].name)) table->eraseAfterFind();
     * }
     *
     * static void decodeHeadersResponse(unsigned char* ptr, uint32_t length)
@@ -856,8 +838,6 @@ protected:
     * UString tmp(U_CAPACITY);
     *
     * UHexDump::encode(ptr, len, tmp);
-    *
-    * (void) UFile::writeToTmp(U_STRING_TO_PARAM(tmp), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("%s.hpack.%P"), breq ? "request" : "response");
     * }
     */
 #endif
